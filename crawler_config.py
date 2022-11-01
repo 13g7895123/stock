@@ -13,7 +13,9 @@ if os.path.isfile(file_path):
     for line in file.readlines():
         signal = ': '
         now_content = line.split(signal)[0]
-        if now_content == 'stock_list_url':
-            stock_list_url = line.split(signal)[1]
+        if now_content == 'tpe_url':
+            tpe_url = line.split(signal)[1]
+        if now_content == 'otc_url':
+            otc_url = line.split(signal)[1]
     file.close()
 

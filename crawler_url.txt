@@ -1,0 +1,1 @@
+stock_list_url: http://isin.twse.com.tw/isin/C_public.jsp?strMode=2

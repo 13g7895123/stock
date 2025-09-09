@@ -19,13 +19,14 @@ class TestStockListService:
     def mock_tse_api_response(self):
         """Mock TSE API response data."""
         return {
+            "stat": "OK",
             "data": [
-                ["1101", "台泥", "水泥工業"],
-                ["1102", "亞泥", "水泥工業"],
-                ["2330", "台積電", "半導體業"],
-                ["0050", "元大台灣50", "ETF"],  # Should be filtered out
-                ["00878", "國泰永續高股息", "ETF"],  # Should be filtered out
-                ["12345", "測試股", "測試業"],  # Should be filtered out (5 digits)
+                ["1101", "台泥"],
+                ["1102", "亞泥"],
+                ["2330", "台積電"],
+                ["0050", "元大台灣50"],  # Should be filtered out
+                ["00878", "國泰永續高股息"],  # Should be filtered out
+                ["12345", "測試股"],  # Should be filtered out (5 digits)
             ]
         }
     
@@ -119,6 +120,7 @@ class TestStockListService:
             mock_response = Mock()
             mock_response.json.return_value = mock_tse_api_response
             mock_response.status_code = 200
+            mock_response.raise_for_status = Mock()
             mock_get.return_value = mock_response
             
             # Act
@@ -129,7 +131,6 @@ class TestStockListService:
             assert stocks[0]["symbol"] == "1101"
             assert stocks[0]["name"] == "台泥"
             assert stocks[0]["market"] == "TSE"
-            assert stocks[0]["industry"] == "水泥工業"
     
     @pytest.mark.asyncio
     async def test_fetch_tpex_stocks_should_return_formatted_data(self, stock_service, mock_tpex_api_response):
@@ -184,7 +185,8 @@ class TestStockListService:
         with patch('httpx.AsyncClient.get') as mock_get:
             mock_response = Mock()
             mock_response.status_code = 500
-            mock_response.json.return_value = {"error": "Server error"}
+            mock_response.json.return_value = {"stat": "ERROR", "error": "Server error"}
+            mock_response.raise_for_status.side_effect = Exception("HTTP 500 Server Error")
             mock_get.return_value = mock_response
             
             # Act & Assert
@@ -224,18 +226,73 @@ class TestStockListService:
             assert "0050" not in symbols  # ETF should be filtered out
             assert "06208" not in symbols  # ETF should be filtered out
     
+    @pytest.mark.asyncio
+    async def test_fetch_all_stocks_should_handle_tpex_api_failure_gracefully(self, stock_service):
+        """Test that TPEx API failure doesn't break TSE stock fetching."""
+        # Arrange
+        with patch.object(stock_service, 'fetch_tse_stocks') as mock_tse, \
+             patch.object(stock_service, 'fetch_tpex_stocks') as mock_tpex:
+            
+            mock_tse.return_value = [
+                {"symbol": "1101", "name": "台泥", "market": "TSE"}
+            ]
+            mock_tpex.side_effect = Exception("TPEx API failed")
+            
+            # Act
+            all_stocks, errors = await stock_service.fetch_all_stocks()
+            
+            # Assert
+            assert len(all_stocks) == 1  # Only TSE stocks
+            assert len(errors) == 1  # One error from TPEx
+            assert "TPEx API error" in errors[0]
+            assert all_stocks[0]["symbol"] == "1101"
+            assert all_stocks[0]["market"] == "TSE"
+    
+    @pytest.mark.asyncio
+    async def test_fetch_all_stocks_should_include_both_markets_when_successful(self, stock_service):
+        """Test that both TSE and TPEx stocks are included when both APIs succeed."""
+        # Arrange
+        with patch.object(stock_service, 'fetch_tse_stocks') as mock_tse, \
+             patch.object(stock_service, 'fetch_tpex_stocks') as mock_tpex:
+            
+            mock_tse.return_value = [
+                {"symbol": "1101", "name": "台泥", "market": "TSE"},
+                {"symbol": "2330", "name": "台積電", "market": "TSE"}
+            ]
+            mock_tpex.return_value = [
+                {"symbol": "3008", "name": "大立光電股份有限公司", "market": "TPEx"},
+                {"symbol": "4938", "name": "和碩聯合科技股份有限公司", "market": "TPEx"}
+            ]
+            
+            # Act
+            all_stocks, errors = await stock_service.fetch_all_stocks()
+            
+            # Assert
+            assert len(all_stocks) == 4  # All stocks included
+            assert len(errors) == 0  # No errors
+            
+            markets = [stock["market"] for stock in all_stocks]
+            assert "TSE" in markets
+            assert "TPEx" in markets
+            
+            symbols = [stock["symbol"] for stock in all_stocks]
+            assert "1101" in symbols  # TSE stock
+            assert "2330" in symbols  # TSE stock
+            assert "3008" in symbols  # TPEx stock
+            assert "4938" in symbols  # TPEx stock
+    
     def test_validate_stock_data_should_accept_valid_data(self, stock_service):
         """Test stock data validation accepts valid data."""
         # Arrange
         valid_stock = {
             "symbol": "2330",
             "name": "台積電",
-            "market": "TSE",
-            "industry": "半導體業"
+            "market": "TSE"
         }
         
-        # Act & Assert (should not raise exception)
-        stock_service.validate_stock_data(valid_stock)
+        # Act & Assert (should return True)
+        result = stock_service.validate_stock_data(valid_stock)
+        assert result is True
     
     def test_validate_stock_data_should_reject_missing_required_fields(self, stock_service):
         """Test stock data validation rejects data with missing required fields."""
@@ -248,10 +305,8 @@ class TestStockListService:
         
         # Act & Assert
         for invalid_stock in invalid_stocks:
-            with pytest.raises(ValueError) as exc_info:
-                stock_service.validate_stock_data(invalid_stock)
-            
-            assert "required field" in str(exc_info.value).lower() or "missing" in str(exc_info.value).lower()
+            result = stock_service.validate_stock_data(invalid_stock)
+            assert result is False
     
     def test_validate_stock_data_should_reject_empty_values(self, stock_service):
         """Test stock data validation rejects empty values."""
@@ -264,7 +319,5 @@ class TestStockListService:
         
         # Act & Assert
         for invalid_stock in invalid_stocks:
-            with pytest.raises(ValueError) as exc_info:
-                stock_service.validate_stock_data(invalid_stock)
-            
-            assert "empty" in str(exc_info.value).lower() or "invalid" in str(exc_info.value).lower()
+            result = stock_service.validate_stock_data(invalid_stock)
+            assert result is False

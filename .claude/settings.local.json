@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(tree:*)",
+      "Bash(docker-compose config:*)",
+      "Bash(docker-compose:*)",
+      "Bash(python -m pytest tests/test_stock_list_service.py -v)",
+      "Bash(pip install:*)",
+      "Bash(python -m pytest tests/test_stock_list_service.py::TestStockListService::test_filter_valid_stocks_should_exclude_etfs_and_invalid_symbols -v)",
+      "Bash(python test:*)",
+      "Bash(python:*)",
+      "Bash(set DATABASE_URL=postgresql://stock_user:password@localhost:9221/stock_analysis)",
+      "Bash(curl:*)",
+      "WebSearch",
+      "WebFetch(domain:www.tpex.org.tw)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

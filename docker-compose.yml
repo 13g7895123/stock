@@ -1,0 +1,163 @@
+# 對外 PORT 配置 - 統一在最上面管理
+# Backend API: ${API_PORT:-8000}
+# Database: ${DB_PORT:-5432}  
+# Redis: ${REDIS_PORT:-6379}
+# Flower: ${FLOWER_PORT:-5555}
+# Nginx: ${NGINX_HTTP_PORT:-80}, ${NGINX_HTTPS_PORT:-443}
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: stock_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-stock_analysis}
+      POSTGRES_USER: ${DB_USER:-stock_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stock_user -d stock_analysis"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Celery and caching
+  redis:
+    image: redis:7-alpine
+    container_name: stock_redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: stock_backend
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-stock_user}:${DB_PASSWORD:-password}@postgres:5432/${DB_NAME:-stock_analysis}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Celery Worker
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: stock_celery_worker
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-stock_user}:${DB_PASSWORD:-password}@postgres:5432/${DB_NAME:-stock_analysis}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    volumes:
+      - ./backend:/app
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A src.celery_app.celery_app worker --loglevel=info --concurrency=2
+
+  # Celery Beat (Scheduler)
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: stock_celery_beat
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-stock_user}:${DB_PASSWORD:-password}@postgres:5432/${DB_NAME:-stock_analysis}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    volumes:
+      - ./backend:/app
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A src.celery_app.celery_app beat --loglevel=info
+
+  # Celery Flower (Monitoring)
+  celery_flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: stock_celery_flower
+    restart: unless-stopped
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    ports:
+      - "${FLOWER_PORT:-5555}:5555"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - redis
+    command: celery -A src.celery_app.celery_app flower --port=5555
+
+  # Nginx (Optional, for production)
+  nginx:
+    image: nginx:alpine
+    container_name: stock_nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+    profiles:
+      - production
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  default:
+    name: stock_analysis_network
+    driver: bridge

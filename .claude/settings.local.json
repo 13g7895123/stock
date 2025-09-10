@@ -13,7 +13,11 @@
       "Bash(set DATABASE_URL=postgresql://stock_user:password@localhost:9221/stock_analysis)",
       "Bash(curl:*)",
       "WebSearch",
-      "WebFetch(domain:www.tpex.org.tw)"
+      "WebFetch(domain:www.tpex.org.tw)",
+      "Bash(npm run dev:*)",
+      "Bash(docker logs:*)",
+      "Bash(docker exec:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

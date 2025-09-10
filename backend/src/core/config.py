@@ -2,7 +2,7 @@
 import os
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import AnyHttpUrl, BaseModel, Field
+from pydantic import AnyHttpUrl, BaseModel, Field, validator
 from pydantic_settings import BaseSettings
 from typing import Any, Dict, List, Optional, Union
 
@@ -75,7 +75,10 @@ class Settings(BaseSettings):
     RATE_LIMIT_BURST: int = Field(200, env="RATE_LIMIT_BURST")
 
     # CORS
-    CORS_ORIGINS: List[AnyHttpUrl] = Field([], env="CORS_ORIGINS")
+    CORS_ORIGINS: List[str] = Field(
+        ["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"],
+        env="CORS_ORIGINS"
+    )
     CORS_ALLOW_CREDENTIALS: bool = Field(True, env="CORS_ALLOW_CREDENTIALS")
     CORS_ALLOW_METHODS: List[str] = Field(
         ["GET", "POST", "PUT", "DELETE", "OPTIONS"], env="CORS_ALLOW_METHODS"
@@ -112,6 +115,20 @@ class Settings(BaseSettings):
     # Testing
     TEST_DATABASE_URL: Optional[str] = Field(None, env="TEST_DATABASE_URL")
     TEST_REDIS_URL: str = Field("redis://localhost:6379/15", env="TEST_REDIS_URL")
+
+    @validator('CORS_ORIGINS', pre=True)
+    def parse_cors_origins(cls, v):
+        """Parse CORS origins from comma-separated string."""
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(',') if origin.strip()]
+        return v
+    
+    @validator('CORS_ALLOW_METHODS', pre=True)
+    def parse_cors_methods(cls, v):
+        """Parse CORS methods from comma-separated string."""
+        if isinstance(v, str):
+            return [method.strip() for method in v.split(',') if method.strip()]
+        return v
 
     model_config = {
         "env_file": ".env",

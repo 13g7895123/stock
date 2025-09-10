@@ -15,7 +15,7 @@ export const useSettingsStore = defineStore('settings', () => {
       icon: 'BuildingOfficeIcon',
       children: [
         { name: '股票清單', href: '/stocks/list' },
-        { name: '股票更新', href: '/stocks/update' },
+        { name: '歷史資料查詢', href: '/stocks/history' },
         { name: '分類管理', href: '/stocks/categories' }
       ]
     },

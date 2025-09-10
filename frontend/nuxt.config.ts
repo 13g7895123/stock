@@ -6,6 +6,19 @@ export default defineNuxtConfig({
     '@pinia/nuxt'
   ],
   css: ['~/assets/css/main.css'],
+  runtimeConfig: {
+    public: {
+      apiUrl: process.env.API_URL || 'http://localhost:9121/api/v1'
+    }
+  },
+  nitro: {
+    devProxy: {
+      '/api': {
+        target: 'http://localhost:9121',
+        changeOrigin: true
+      }
+    }
+  },
   colorMode: {
     preference: 'system',
     fallback: 'light',

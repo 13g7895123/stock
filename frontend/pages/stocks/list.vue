@@ -1,5 +1,22 @@
 <template>
   <div class="space-y-6">
+    <!-- 通知區域 -->
+    <div v-if="notification.show" :class="[
+      'p-4 rounded-lg border-l-4 flex items-center justify-between',
+      notification.type === 'success' ? 'bg-green-50 border-green-400 text-green-700 dark:bg-green-900 dark:text-green-200' :
+      notification.type === 'error' ? 'bg-red-50 border-red-400 text-red-700 dark:bg-red-900 dark:text-red-200' :
+      'bg-blue-50 border-blue-400 text-blue-700 dark:bg-blue-900 dark:text-blue-200'
+    ]">
+      <div class="flex items-center">
+        <span class="font-medium mr-2">
+          {{ notification.type === 'success' ? '✅' : notification.type === 'error' ? '❌' : 'ℹ️' }}
+        </span>
+        <span>{{ notification.message }}</span>
+      </div>
+      <button @click="notification.show = false" class="text-lg font-bold opacity-70 hover:opacity-100">
+        ×
+      </button>
+    </div>
     <!-- 頁面標題與操作 -->
     <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm p-6">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -8,13 +25,28 @@
           <p class="text-gray-600 dark:text-gray-300 mt-1">管理系統中的股票資料，包括新增、編輯和刪除股票</p>
         </div>
         <div class="flex items-center space-x-3">
-          <button class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2">
-            <ArrowPathIcon class="w-4 h-4" />
-            <span>更新股票清單</span>
+          <button 
+            @click="handleCrawlStocks"
+            :disabled="loading"
+            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
+          >
+            <ArrowPathIcon :class="['w-4 h-4', loading ? 'animate-spin' : '']" />
+            <span>{{ loading ? '更新中...' : '爬取股票清單' }}</span>
           </button>
-          <button class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center space-x-2">
-            <PlusIcon class="w-4 h-4" />
-            <span>新增股票</span>
+          <button 
+            @click="handleSyncStocks"
+            :disabled="loading"
+            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
+          >
+            <ArrowPathIcon :class="['w-4 h-4', loading ? 'animate-spin' : '']" />
+            <span>{{ loading ? '同步中...' : '同步股票列表' }}</span>
+          </button>
+          <button 
+            @click="handleGetStockCount"
+            :disabled="loading"
+            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
+          >
+            <span>檢查數量</span>
           </button>
         </div>
       </div>
@@ -89,6 +121,9 @@
         <div class="flex items-center justify-between">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
             股票列表 ({{ filteredStocks.length }} 檔)
+            <span v-if="stockCount !== null" class="text-sm text-gray-500 dark:text-gray-400 ml-2">
+              (資料庫: {{ stockCount }} 檔)
+            </span>
           </h3>
           <div class="flex items-center space-x-2">
             <button class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
@@ -268,6 +303,16 @@ definePageMeta({
   title: '股票清單管理'
 })
 
+// 使用組合式函數
+const { 
+  loading, 
+  error, 
+  getStockCount, 
+  crawlStockList, 
+  syncStockList, 
+  getStockList 
+} = useStocks()
+
 // 響應式資料
 const searchQuery = ref('')
 const selectedMarket = ref('')
@@ -275,6 +320,28 @@ const selectedIndustry = ref('')
 const selectedStatus = ref('')
 const currentPage = ref(1)
 const pageSize = ref(20)
+const stockCount = ref(null)
+
+// 通知系統
+const notification = ref({
+  show: false,
+  type: 'info',
+  message: ''
+})
+
+// 顯示通知
+const showNotification = (type, message) => {
+  notification.value = {
+    show: true,
+    type,
+    message
+  }
+  
+  // 3秒後自動隱藏
+  setTimeout(() => {
+    notification.value.show = false
+  }, 5000)
+}
 
 // 模擬股票資料
 const stocks = ref([
@@ -345,8 +412,46 @@ const paginatedStocks = computed(() => {
   return filteredStocks.value.slice(start, end)
 })
 
+// API處理函數
+const handleGetStockCount = async () => {
+  const result = await getStockCount()
+  if (result) {
+    stockCount.value = result.total_stocks
+    showNotification('success', `資料庫中共有 ${result.total_stocks} 檔股票`)
+  } else {
+    showNotification('error', error.value || '獲取股票數量失敗')
+  }
+}
+
+const handleCrawlStocks = async () => {
+  showNotification('info', '開始爬取股票清單...')
+  const result = await crawlStockList()
+  if (result) {
+    await handleGetStockCount() // 重新獲取數量
+    showNotification('success', `爬取完成！成功處理 ${result.total_updated || result.total_processed || 0} 檔股票`)
+  } else {
+    showNotification('error', error.value || '爬取股票清單失敗')
+  }
+}
+
+const handleSyncStocks = async () => {
+  showNotification('info', '開始同步股票清單...')
+  const result = await syncStockList()
+  if (result) {
+    await handleGetStockCount() // 重新獲取數量
+    showNotification('success', `同步完成！處理了 ${result.total_processed || 0} 檔股票`)
+  } else {
+    showNotification('error', error.value || '同步股票清單失敗')
+  }
+}
+
 // 監聽篩選條件變化，重置頁面
 watch([searchQuery, selectedMarket, selectedIndustry, selectedStatus], () => {
   currentPage.value = 1
+})
+
+// 組件掛載時獲取股票數量
+onMounted(async () => {
+  await handleGetStockCount()
 })
 </script>

@@ -140,7 +140,7 @@ class StockHistoryService:
             
             # 建立查詢
             query = self.db_session.query(StockDailyData).filter(
-                StockDailyData.stock_code == symbol
+                StockDailyData.stock_id == symbol
             )
             
             # 日期範圍篩選
@@ -224,7 +224,7 @@ class StockHistoryService:
             
             latest_record = (
                 self.db_session.query(StockDailyData)
-                .filter(StockDailyData.stock_code == symbol)
+                .filter(StockDailyData.stock_id == symbol)
                 .order_by(desc(StockDailyData.trade_date))
                 .first()
             )
@@ -249,7 +249,7 @@ class StockHistoryService:
                 raise ValueError(f"Invalid stock symbol: {symbol}")
             
             query = self.db_session.query(StockDailyData).filter(
-                StockDailyData.stock_code == symbol
+                StockDailyData.stock_id == symbol
             )
             
             total_records = query.count()

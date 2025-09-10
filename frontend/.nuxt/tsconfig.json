@@ -189,6 +189,7 @@
     "../dist",
     "../.data",
     "../node_modules",
+    "../../node_modules",
     "../node_modules/nuxt/node_modules",
     "../node_modules/@nuxt/icon/node_modules",
     "../node_modules/@nuxtjs/color-mode/node_modules",

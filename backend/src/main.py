@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 
-from src.api.endpoints import health, stocks, stock_sync
+from src.api.endpoints import health, stocks, stock_sync, data
 from src.core.config import settings
 from src.core.database import create_tables
 
@@ -95,6 +95,12 @@ app.include_router(
     stock_sync.router,
     prefix="/api/v1/sync",
     tags=["Stock Synchronization"]
+)
+
+app.include_router(
+    data.router,
+    prefix="/api/v1/data",
+    tags=["Data Management"]
 )
 
 # Global exception handler

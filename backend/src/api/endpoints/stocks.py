@@ -3,17 +3,84 @@ import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, date
 
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, Body
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 from src.core.database import get_db
 from src.core.config import settings
+from src.models.stock import Stock
 from src.celery_app.tasks.data_collection import update_market_data, fetch_historical_data
 from src.celery_app.tasks.analysis import run_technical_analysis, generate_signals
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+@router.get("/list")
+async def get_stock_list(
+    db: Session = Depends(get_db),
+    page: int = Query(1, ge=1, description="頁數"),
+    limit: int = Query(50, ge=1, le=1000, description="每頁筆數"),
+    market: Optional[str] = Query(None, description="市場篩選 (TSE/TPEx)"),
+    search: Optional[str] = Query(None, description="搜尋股票代號或名稱")
+) -> Dict[str, Any]:
+    """從資料庫獲取股票列表"""
+    try:
+        # 建立基礎查詢
+        query = db.query(Stock).filter(Stock.is_active == True)
+        
+        # 市場篩選
+        if market:
+            query = query.filter(Stock.market == market)
+            
+        # 搜尋功能
+        if search:
+            search_pattern = f"%{search}%"
+            query = query.filter(
+                (Stock.symbol.ilike(search_pattern)) | 
+                (Stock.name.ilike(search_pattern))
+            )
+        
+        # 計算總數
+        total = query.count()
+        
+        # 分頁
+        offset = (page - 1) * limit
+        stocks = query.order_by(Stock.symbol).offset(offset).limit(limit).all()
+        
+        # 格式化回傳資料
+        stock_list = []
+        for stock in stocks:
+            stock_list.append({
+                "code": stock.symbol,
+                "name": stock.name,
+                "market": stock.market,
+                "industry": stock.industry or "未分類",
+                "price": 0.00,  # 需要從其他來源獲取即時價格
+                "change": 0.0,  # 需要計算漲跌幅
+                "dataStatus": "complete",
+                "lastUpdate": "即時"
+            })
+        
+        return {
+            "status": "success",
+            "stocks": stock_list,
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total": total,
+                "total_pages": (total + limit - 1) // limit,
+                "has_next": page * limit < total,
+                "has_previous": page > 1
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting stock list: {str(e)}")
+        raise HTTPException(status_code=500, detail="獲取股票列表失敗")
 
 
 @router.get("/symbols")
@@ -92,21 +159,33 @@ async def trigger_data_update(
 
 @router.post("/update-all")
 async def trigger_all_data_update(
-    symbols: Optional[List[str]] = None,
-    background_tasks: BackgroundTasks = None
+    symbols: Optional[List[str]] = Body(None),
+    background_tasks: BackgroundTasks = None,
+    db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """Trigger data update for all or specified symbols."""
     if symbols is None:
-        symbols = settings.DEFAULT_STOCK_SYMBOLS
+        # 從資料庫查詢所有啟用的股票
+        try:
+            stocks = db.query(Stock).filter(Stock.is_active == True).all()
+            symbols = [stock.symbol for stock in stocks]
+            logger.info(f"Retrieved {len(symbols)} active stocks from database")
+            
+            if not symbols:
+                raise HTTPException(status_code=404, detail="No active stocks found in database")
+                
+        except Exception as e:
+            logger.error(f"Error retrieving stocks from database: {str(e)}")
+            raise HTTPException(status_code=500, detail="Failed to retrieve active stocks from database")
     
     symbols = [s.upper() for s in symbols]
-    logger.info(f"Triggering data update for symbols: {symbols}")
+    logger.info(f"Triggering data update for {len(symbols)} symbols: {symbols[:10]}{'...' if len(symbols) > 10 else ''}")
     
     # Start background task
     task = update_market_data.delay(symbols)
     
     return {
-        "message": f"Data update triggered for {len(symbols)} symbols",
+        "message": f"Data update triggered for {len(symbols)} symbols from database",
         "symbols": symbols,
         "task_id": task.id,
         "status": "queued",

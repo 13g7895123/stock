@@ -74,14 +74,14 @@ export const useStocks = () => {
   }
 
   /**
-   * 獲取股票列表
+   * 獲取股票列表（從資料庫）
    */
   const getStockList = async (params = {}) => {
     loading.value = true
     error.value = null
     
     try {
-      const result = await get('/data/stocks', params)
+      const result = await get('/stocks/list', params)
       
       if (result.success) {
         stocks.value = result.data.stocks || result.data
@@ -158,6 +158,70 @@ export const useStocks = () => {
     }
   }
 
+  /**
+   * 更新單一股票歷史資料
+   */
+  const updateStockData = async (symbol) => {
+    loading.value = true
+    error.value = null
+    
+    try {
+      const result = await post(`/stocks/${symbol}/update`)
+      
+      if (result.success || result.message) {
+        return result
+      } else {
+        error.value = result.error
+        return null
+      }
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
+   * 更新所有股票歷史資料
+   */
+  const updateAllStockData = async (symbols = null) => {
+    loading.value = true
+    error.value = null
+    
+    try {
+      // 修正：直接發送 symbols 陣列，而不是包裝在對象中
+      const result = await post('/stocks/update-all', symbols)
+      
+      if (result.success || result.message) {
+        return result
+      } else {
+        error.value = result.error
+        return null
+      }
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
+   * 獲取整體歷史資料統計
+   */
+  const getOverallStats = async () => {
+    loading.value = true
+    error.value = null
+    
+    try {
+      const result = await get('/data/history/overview')
+      
+      if (result.success) {
+        return result.data
+      } else {
+        error.value = result.error
+        return null
+      }
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     // 響應式資料
     stocks: readonly(stocks),
@@ -171,6 +235,9 @@ export const useStocks = () => {
     getStockList,
     getStockHistory,
     getStockStats,
-    getLatestTradeDate
+    getLatestTradeDate,
+    updateStockData,
+    updateAllStockData,
+    getOverallStats
   }
 }

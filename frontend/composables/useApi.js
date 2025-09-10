@@ -56,7 +56,7 @@ export const useApi = () => {
   const post = async (endpoint, data = {}) => {
     return await apiRequest(endpoint, {
       method: 'POST',
-      body: JSON.stringify(data)
+      body: data !== null ? JSON.stringify(data) : 'null'
     })
   }
 

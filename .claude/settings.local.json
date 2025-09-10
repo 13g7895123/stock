@@ -14,6 +14,10 @@
       "Bash(curl:*)",
       "WebSearch",
       "WebFetch(domain:www.tpex.org.tw)",
+      "Bash(docker volume rm:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
       "Bash(npm run dev:*)",
       "Bash(docker logs:*)",
       "Bash(docker exec:*)",

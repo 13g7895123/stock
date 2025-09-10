@@ -31,26 +31,46 @@ class StockDailyData(Base):
     
     __tablename__ = "stock_daily_data"
     
-    id = Column(BigInteger, primary_key=True, index=True)
-    stock_id = Column(String(10), nullable=False, index=True, comment="股票代號")
+    id = Column(Integer, primary_key=True, index=True)
+    stock_code = Column(String(10), nullable=False, index=True, comment="股票代號")
     trade_date = Column(DateTime(timezone=True), nullable=False, index=True, comment="交易日期")
-    open_price = Column(Float, nullable=False, comment="開盤價")
-    high_price = Column(Float, nullable=False, comment="最高價")
-    low_price = Column(Float, nullable=False, comment="最低價")
-    close_price = Column(Float, nullable=False, comment="收盤價")
-    volume = Column(BigInteger, nullable=False, comment="成交量")
-    adjusted_close = Column(Float, nullable=False, comment="還原收盤價")
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    open_price = Column(Float, comment="開盤價")
+    high_price = Column(Float, comment="最高價")
+    low_price = Column(Float, comment="最低價")
+    close_price = Column(Float, comment="收盤價")
+    volume = Column(BigInteger, comment="成交量")
+    turnover = Column(Float, comment="成交額")
+    price_change = Column(Float, comment="價差")
+    price_change_rate = Column(Float, comment="漲跌幅")
+    ma5 = Column(Float, comment="5日均線")
+    ma10 = Column(Float, comment="10日均線")
+    ma20 = Column(Float, comment="20日均線")
+    data_source = Column(String(50), nullable=False, comment="資料來源")
+    data_quality = Column(String(20), comment="資料品質")
+    is_validated = Column(Boolean, default=False, comment="是否已驗證")
+    created_at = Column(DateTime(timezone=False), server_default=func.now())
+    updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
     
-    # Create unique constraint and indexes for performance
-    __table_args__ = (
-        UniqueConstraint('stock_id', 'trade_date', name='uq_stock_date'),
-        Index('idx_stock_date_desc', 'stock_id', 'trade_date'),
-        Index('idx_trade_date', 'trade_date'),
-    )
+    # 為了向後相容，提供stock_id屬性
+    @property 
+    def stock_id(self):
+        return self.stock_code
+    
+    @stock_id.setter
+    def stock_id(self, value):
+        self.stock_code = value
+    
+    # 為了向後相容，提供adjusted_close屬性
+    @property
+    def adjusted_close(self):
+        return self.close_price
+    
+    @adjusted_close.setter  
+    def adjusted_close(self, value):
+        self.close_price = value
     
     def __repr__(self) -> str:
-        return f"<StockDailyData(stock_id='{self.stock_id}', trade_date='{self.trade_date}', close={self.close_price})>"
+        return f"<StockDailyData(stock_code='{self.stock_code}', trade_date='{self.trade_date}', close={self.close_price})>"
 
 
 class MovingAverages(Base):

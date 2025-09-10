@@ -19,6 +19,16 @@
 7. 幫我優先實作3.3股票擷取模組，一共有兩個項目，先處理擷取股票列表的功能，只要上市上櫃即可，另外我要非0開頭且四碼的股票就好，其餘的不需要，然後需要請tdd agent先撰寫好測試，再實作功能，實作功能完成後需要通過測試才算完成，完成後請更新tasks的狀態，目前看到你完成了，但是我怎麼沒有看到任何docker服務打開，這樣我怎麼知道要去哪支API確認資料是否寫入資料庫了，TDD也沒有寫到這點，是否漏了，幫我補上
 8. 我測試了docker啟用根本就有問題，請幫我確認是哪裡的問題，如果是套件，請告訴我它的用途，讓我決定是否要保留，celery_flow沒有正常啟用
 9. 我執行了http://localhost:9121/api/v1/sync/stocks/count，出現Invalid host header，請幫我加入測試項目，並排出該項錯誤
+10. 幫我寫一支GET的api端點，可以爬取當前的股票列表更新進入資料庫中，確認tasks中是否有這個項目，沒有的話幫我加入，有的話幫我撰寫TDD測試後，開始執行，並確保完成TDD測試，上櫃股票的，目前只有看到上市股票
+11. 幫我建置取得還原日線資料的功能，他是透過爬蟲的方式取得資料，先幫我建置一個測試用的資料夾，等功能完成後在把它移至專案中對應的地方，一共有八個連結http://fubon-ebrokerdj.fbs.com.tw/、http://justdata.moneydj.com/、http://jdata.yuanta.com.tw/、http://moneydj.emega.com.tw/、http://djfubonholdingfund.fbs.com.tw/、https://sjmain.esunsec.com.tw/、http://kgieworld.moneydj.com/、http://newjust.masterlink.com.tw/，後面加入z/BCD/czkc1.djbcd?a={股票代號}&b=A&c=2880&E=1&ver=5，可以取得歷史資料，幫我解析資料，並存入資料庫，請先幫我用2330處理，先確認一筆資料正確再處理其他的，幫我建置API，執行流程為，先更新tasks.md，並撰寫tdd測試，最後才執行，執行後依據tdd測試，直到通過為止
+12. 我透過這個網址是無法使用的http://localhost:9127/api/v1/data/daily/2330，幫我確認，回答請一律用zh_tw
+13. Failed to fetch daily data for stock 2330. The broker data sources    
+   may be unavailable.，回傳這個根本沒過啊，請確認有正確取得資料，TDD請確實寫好
+14. 完成以下功能
+    - 回答一律用zh_tw，寫入CLAUDE.md
+    - 執行流程只要是開發新功能，都先幫我寫TDD，更新tasks，然後在執行功能撰寫，完成後執行測試，直到通過測試才算完成，寫入CLAUDE.md
+    - 請幫我寫一隻API，可以查詢系統中，特定股票的歷史資料，用GET執行
+    - 請幫我view過專案，從14點昨天做到一半的地方往下完成，然後測試相關的請不要寫在根目錄，用一個test資料夾裝起來就好
 10. 幫我寫一支GET的api端點，可以爬取當前的股票列表更新進入資料庫中，，確認tasks中是否有這個項目，沒有的話幫我加入，有的話幫我撰寫TDD測試後，開始執行，並確保完成TDD測試，上櫃股票的，目前只有看到上市股票
 11. 目前好像沒有看到前端專案，幫我一併調整前端專案，要把目前已經做完的後端功能都上上去，需要有按鈕可以打通API
 12. 目前我用http://localhost:3000去打api會出現CORS的問題，每一支API都是，幫我排除這個問題並執行add commit push

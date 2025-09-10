@@ -201,7 +201,20 @@ technical_indicators (
 **任務內容：**
 - [x] 建立外部API串接服務 (使用 httpx) ✅ **完成 - 2025/01/09**
 - [x] 實作股票清單自動更新功能 ✅ **完成 - 2025/01/09**
-- [ ] 實作股票日線資料擷取功能 (還原日線)
+- [x] 實作股票日線資料擷取功能 (還原日線) ✅ **完成 - 2025/09/09**
+  - [x] 建立測試資料夾進行開發
+  - [x] 撰寫TDD測試（使用股票2330測試）
+  - [x] 實作8個券商網站爬蟲功能：
+    - http://fubon-ebrokerdj.fbs.com.tw/
+    - http://justdata.moneydj.com/
+    - http://jdata.yuanta.com.tw/
+    - http://moneydj.emega.com.tw/
+    - http://djfubonholdingfund.fbs.com.tw/
+    - https://sjmain.esunsec.com.tw/
+    - http://kgieworld.moneydj.com/
+    - http://newjust.masterlink.com.tw/
+  - [x] 實作歷史日線資料解析（URL格式：{base_url}/z/BCD/czkc1.djbcd?a={股票代號}&b=A&c=2880&E=1&ver=5）
+  - [x] 建立資料驗證和儲存邏輯
 - [ ] 建立資料還原處理邏輯 (pandas 處理)
 - [ ] 實作增量更新機制
 - [ ] 建立資料品質檢查機制
@@ -212,6 +225,7 @@ technical_indicators (
 - [x] `GET /api/v1/sync/stocks/count` - 取得股票統計 ✅ **完成 - 2025/01/09**  
 - [x] `GET /api/v1/sync/stocks/validate/{symbol}` - 驗證股票代號 ✅ **完成 - 2025/01/09**
 - [x] `GET /api/v1/sync/stocks/crawl` - 爬取股票列表並更新資料庫 ✅ **完成 - 2025/09/09**
+- [x] `GET /api/v1/data/daily/{symbol}` - 爬取並更新單一股票還原日線資料 ✅ **完成 - 2025/09/09**
 - [ ] `POST /api/data/update-daily/:stockId` - 更新單一股票日線
 - [ ] `POST /api/data/update-all-daily` - 更新所有股票日線
 - [ ] `GET /api/data/sync-status` - 取得同步狀態
@@ -233,6 +247,17 @@ technical_indicators (
 - 完整TDD測試覆蓋：成功場景、部分失敗、完全失敗、冪等性測試
 - 實際測試驗證：成功爬取1,053支TSE股票並儲存至資料庫
 - 錯誤處理：TPEx API安全重新導向處理
+
+✅ **股票日線資料擷取功能 (2025/09/09)：**
+- 實作DailyDataService核心服務類別（完整TDD開發）
+- 支援8個券商網站資料來源同時爬取
+- 完整資料驗證：格式檢查、價格邏輯驗證、交易量驗證
+- 智能資料解析：支援多種回應格式（tab分隔、逗號分隔）
+- 資料庫整合：新增/更新機制，重複資料處理
+- 錯誤處理：個別broker失敗容錯，完整異常處理
+- API端點實作：`GET /api/v1/data/daily/{symbol}` 和 `/latest` 端點
+- 完整17項TDD測試覆蓋：單元測試、整合測試、錯誤場景測試
+- 系統整合：FastAPI路由註冊、資料庫連接、日誌記錄
 
 ### 3.4 技術指標計算模組
 **優先級：** P0（必須）  

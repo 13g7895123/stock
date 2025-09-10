@@ -26,6 +26,44 @@ def get_stock_history_service(db: Session = Depends(get_db)) -> StockHistoryServ
     return StockHistoryService(db_session=db)
 
 
+@router.get("/history/overview", response_model=Dict[str, Any])
+async def get_overall_statistics(
+    history_service: StockHistoryService = Depends(get_stock_history_service)
+) -> Dict[str, Any]:
+    """取得整體歷史資料統計資訊
+    
+    提供系統中所有股票歷史資料的統計摘要，包含：
+    - 總股票數（有歷史資料的）
+    - 總資料筆數
+    - 最新資料日期
+    - 資料完整度
+    
+    **回傳資料格式：**
+    - total_stocks: 總股票數
+    - total_records: 總資料筆數
+    - latest_date: 最新資料日期
+    - completeness: 資料完整度百分比
+    """
+    try:
+        logger.info("Received overall statistics request")
+        
+        # 呼叫服務層取得整體統計資訊
+        result = history_service.get_overall_statistics()
+        
+        logger.info(f"Successfully retrieved overall statistics: "
+                   f"{result['total_stocks']} stocks, {result['total_records']} records")
+        
+        return result
+        
+    except Exception as e:
+        # 系統錯誤
+        logger.error(f"Unexpected error retrieving overall statistics: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error while retrieving overall statistics"
+        )
+
+
 @router.get("/history/{symbol}", response_model=Dict[str, Any])
 async def get_stock_history(
     symbol: str,

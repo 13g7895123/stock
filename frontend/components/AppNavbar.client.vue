@@ -303,6 +303,7 @@ import {
 } from '@heroicons/vue/24/outline'
 
 const { t, locale, locales } = useI18n()
+const router = useRouter()
 const route = useRoute()
 const sidebarStore = useSidebarStore()
 const { toggleMobileSidebar } = sidebarStore
@@ -329,7 +330,12 @@ const pageTitle = computed(() => {
     '/help': t('nav.help_center'),
     '/help/faq': t('nav.faq'),
     '/help/support': t('nav.support'),
-    '/help/docs': t('nav.docs')
+    '/help/docs': t('nav.docs'),
+    '/stocks/list': '股票清單管理',
+    '/stocks/history': '股票歷史資料',
+    '/data/historical': '歷史資料管理',
+    '/data/update': '資料更新管理',
+    '/data/quality': '資料品質管理'
   }
   return titles[route.path] || 'Page'
 })

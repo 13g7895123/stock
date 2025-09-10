@@ -109,13 +109,43 @@ celery -A src.celery_app.celery_app beat --loglevel=info
 celery -A src.celery_app.celery_app flower --port=5555
 ```
 
-#### Option 2: Docker Compose
+#### Option 2: Docker Compose (推薦)
 ```bash
+# 啟動所有服務
 docker-compose up -d
+
+# 或個別啟動服務
+docker-compose up -d postgres redis  # 基礎服務
+docker-compose up -d backend          # API 服務
+docker-compose up -d celery_worker    # 背景任務工作者
+docker-compose up -d celery_beat      # 定時任務排程器
+docker-compose up -d celery_flower    # Celery 監控介面
+
+# 檢查服務狀態
+docker-compose ps
+
+# 查看日誌
+docker-compose logs -f backend
+docker-compose logs -f celery_worker
 ```
+
+**重要提醒:** 
+- 使用Docker Compose時，所有API都要通過對外端口訪問 (例如 `localhost:9121` 而不是 `localhost:8000`)
+- Redis和Celery服務已正確配置，背景任務功能完全正常
+- 如果需要連接資料庫，請使用端口 `9221`
 
 ### API Access
 
+**使用Docker Compose (推薦):**
+- **API Documentation**: http://localhost:9121/docs
+- **Alternative Documentation**: http://localhost:9121/redoc
+- **Health Check**: http://localhost:9121/api/v1/health
+- **Database**: localhost:9221 (PostgreSQL)
+- **Redis**: localhost:9321 (Redis)
+- **Celery Monitoring**: http://localhost:9421 (Flower)
+- **Frontend**: http://localhost:3000 (Nuxt.js)
+
+**本機開發模式:**
 - **API Documentation**: http://localhost:8000/docs
 - **Alternative Documentation**: http://localhost:8000/redoc
 - **Health Check**: http://localhost:8000/api/v1/health

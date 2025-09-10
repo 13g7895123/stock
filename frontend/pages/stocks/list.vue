@@ -25,29 +25,29 @@
           <p class="text-gray-600 dark:text-gray-300 mt-1">管理系統中的股票資料，包括新增、編輯和刪除股票</p>
         </div>
         <div class="flex items-center space-x-3">
-          <button 
+          <ActionButton 
             @click="handleCrawlStocks"
-            :disabled="loading"
-            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
-          >
-            <ArrowPathIcon :class="['w-4 h-4', loading ? 'animate-spin' : '']" />
-            <span>{{ loading ? '更新中...' : '爬取股票清單' }}</span>
-          </button>
-          <button 
+            :loading="loading"
+            :icon="ArrowPathIcon"
+            text="爬取股票清單"
+            loading-text="爬取中..."
+            variant="success"
+          />
+          <ActionButton 
             @click="handleSyncStocks"
-            :disabled="loading"
-            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
-          >
-            <ArrowPathIcon :class="['w-4 h-4', loading ? 'animate-spin' : '']" />
-            <span>{{ loading ? '同步中...' : '同步股票列表' }}</span>
-          </button>
-          <button 
+            :loading="loading"
+            :icon="ArrowPathIcon"
+            text="同步股票列表"
+            loading-text="同步中..."
+            variant="info"
+          />
+          <ActionButton 
             @click="handleGetStockCount"
-            :disabled="loading"
-            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
-          >
-            <span>檢查數量</span>
-          </button>
+            :loading="loading"
+            :icon="ChartBarIcon"
+            text="檢查數量"
+            variant="secondary"
+          />
         </div>
       </div>
     </div>
@@ -126,6 +126,15 @@
             </span>
           </h3>
           <div class="flex items-center space-x-2">
+            <ActionButton 
+              @click="loadStockList"
+              :loading="loading"
+              :icon="ArrowPathIcon"
+              text="重新載入"
+              loading-text="載入中..."
+              variant="primary"
+              size="sm"
+            />
             <button class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
               <FunnelIcon class="w-4 h-4" />
             </button>
@@ -295,7 +304,8 @@ import {
   ArrowDownTrayIcon,
   PencilIcon,
   TrashIcon,
-  EllipsisVerticalIcon
+  EllipsisVerticalIcon,
+  ChartBarIcon
 } from '@heroicons/vue/24/outline'
 
 // 設定頁面標題
@@ -321,6 +331,7 @@ const selectedStatus = ref('')
 const currentPage = ref(1)
 const pageSize = ref(20)
 const stockCount = ref(null)
+const realStocks = ref([]) // 從API獲取的實際股票資料
 
 // 通知系統
 const notification = ref({
@@ -379,7 +390,7 @@ const stocks = ref([
 
 // 計算屬性
 const filteredStocks = computed(() => {
-  let result = stocks.value
+  let result = realStocks.value.length > 0 ? realStocks.value : stocks.value
 
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
@@ -416,10 +427,39 @@ const paginatedStocks = computed(() => {
 const handleGetStockCount = async () => {
   const result = await getStockCount()
   if (result) {
-    stockCount.value = result.total_stocks
-    showNotification('success', `資料庫中共有 ${result.total_stocks} 檔股票`)
+    stockCount.value = result.total
+    showNotification('success', `資料庫中共有 ${result.total} 檔股票`)
   } else {
     showNotification('error', error.value || '獲取股票數量失敗')
+  }
+}
+
+const loadStockList = async () => {
+  try {
+    const result = await getStockList({
+      page: 1,
+      limit: 2000, // 載入更多資料
+      market: selectedMarket.value || undefined,
+      search: searchQuery.value || undefined
+    })
+    
+    console.log('API回傳資料:', result) // 除錯用
+    
+    if (result && result.stocks) {
+      realStocks.value = result.stocks
+      showNotification('success', `載入 ${result.stocks.length} 檔股票資料`)
+      
+      // 如果有分頁資訊，也顯示總數
+      if (result.pagination && result.pagination.total) {
+        console.log(`總共 ${result.pagination.total} 檔股票，目前載入 ${result.stocks.length} 檔`)
+      }
+    } else {
+      console.error('API回傳格式錯誤:', result)
+      showNotification('error', '無法取得股票資料，請檢查API回應格式')
+    }
+  } catch (err) {
+    console.error('載入股票列表錯誤:', err)
+    showNotification('error', `載入失敗: ${err.message || '未知錯誤'}`)
   }
 }
 
@@ -428,7 +468,8 @@ const handleCrawlStocks = async () => {
   const result = await crawlStockList()
   if (result) {
     await handleGetStockCount() // 重新獲取數量
-    showNotification('success', `爬取完成！成功處理 ${result.total_updated || result.total_processed || 0} 檔股票`)
+    await loadStockList() // 重新載入股票列表
+    showNotification('success', `爬取完成！成功處理 ${result.total_stocks || 0} 檔股票`)
   } else {
     showNotification('error', error.value || '爬取股票清單失敗')
   }
@@ -439,7 +480,8 @@ const handleSyncStocks = async () => {
   const result = await syncStockList()
   if (result) {
     await handleGetStockCount() // 重新獲取數量
-    showNotification('success', `同步完成！處理了 ${result.total_processed || 0} 檔股票`)
+    await loadStockList() // 重新載入股票列表
+    showNotification('success', `同步完成！處理了 ${result.total_stocks || 0} 檔股票`)
   } else {
     showNotification('error', error.value || '同步股票清單失敗')
   }
@@ -450,8 +492,9 @@ watch([searchQuery, selectedMarket, selectedIndustry, selectedStatus], () => {
   currentPage.value = 1
 })
 
-// 組件掛載時獲取股票數量
+// 組件掛載時獲取股票數量和列表
 onMounted(async () => {
   await handleGetStockCount()
+  await loadStockList()
 })
 </script>

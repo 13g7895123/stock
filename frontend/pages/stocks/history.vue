@@ -427,8 +427,8 @@ const handleGetLatestDate = async () => {
   const result = await getLatestTradeDate(queryParams.value.symbol)
   
   if (result) {
-    latestDate.value = result.latest_date
-    showNotification('success', `最新交易日: ${result.latest_date}`)
+    latestDate.value = result.latest_trade_date
+    showNotification('success', result.has_data ? `最新交易日: ${result.latest_trade_date}` : result.message)
   } else {
     showNotification('error', error.value || '取得最新交易日失敗')
   }

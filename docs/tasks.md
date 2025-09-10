@@ -179,11 +179,13 @@ technical_indicators (
 **負責模組：** 股票資料
 
 **API端點：**
-- [ ] `GET /api/stocks` - 取得股票列表
+- [x] `GET /api/v1/stocks/list` - 取得股票列表（支援分頁、篩選、搜尋） ✅ **完成 - 2025/09/09**
 - [ ] `POST /api/stocks` - 新增股票
 - [ ] `PUT /api/stocks/:id` - 更新股票資訊
 - [ ] `DELETE /api/stocks/:id` - 刪除股票
-- [ ] `GET /api/stocks/:id/daily-data` - 取得股票日線資料
+- [x] `GET /api/v1/data/history/{symbol}` - 查詢特定股票歷史資料（支援分頁、日期範圍、排序） ✅ **完成 - 2025/09/09**
+- [x] `GET /api/v1/data/history/{symbol}/stats` - 股票統計資訊 ✅ **完成 - 2025/09/09**
+- [x] `GET /api/v1/data/history/{symbol}/latest-date` - 最新交易日期 ✅ **完成 - 2025/09/09**
 
 **服務層功能：**
 - [ ] 股票列表 CRUD 操作

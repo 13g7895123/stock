@@ -12,9 +12,9 @@ import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, date
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, desc, asc
+from sqlalchemy import and_, desc, asc, func
 
-from src.models.stock import StockDailyData
+from src.models.stock import StockDailyData, Stock
 
 logger = logging.getLogger(__name__)
 
@@ -290,4 +290,55 @@ class StockHistoryService:
             
         except Exception as e:
             logger.error(f"Error getting statistics for {symbol}: {e}")
+            raise
+    
+    def get_overall_statistics(self) -> Dict[str, Any]:
+        """取得整體歷史資料統計資訊
+        
+        Returns:
+            Dict[str, Any]: 整體統計資訊
+        """
+        try:
+            # 取得總資料筆數
+            total_records = self.db_session.query(StockDailyData).count()
+            
+            # 取得有資料的股票數量（不重複的股票代號）
+            total_stocks = (
+                self.db_session.query(StockDailyData.stock_id)
+                .distinct()
+                .count()
+            )
+            
+            # 取得整體最新日期
+            latest_record = (
+                self.db_session.query(StockDailyData)
+                .order_by(desc(StockDailyData.trade_date))
+                .first()
+            )
+            
+            latest_date = latest_record.trade_date.strftime('%Y-%m-%d') if latest_record else None
+            
+            # 計算資料完整度
+            # 這裡簡化計算：假設完整度是基於有資料的股票數佔總股票數的比例
+            total_active_stocks = (
+                self.db_session.query(Stock)
+                .filter(Stock.is_active == True)
+                .count()
+            )
+            
+            completeness = (
+                round((total_stocks / total_active_stocks) * 100, 1) 
+                if total_active_stocks > 0 else 0
+            )
+            
+            return {
+                "total_stocks": total_stocks,
+                "total_records": total_records, 
+                "latest_date": latest_date,
+                "completeness": completeness,
+                "total_active_stocks": total_active_stocks
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting overall statistics: {e}")
             raise

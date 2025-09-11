@@ -45,3 +45,13 @@ def create_tables() -> None:
 def drop_tables() -> None:
     """Drop all database tables."""
     Base.metadata.drop_all(bind=engine)
+
+
+def get_session_for_thread() -> Session:
+    """
+    Create a new database session for use in threads.
+    
+    Returns:
+        New database session (caller must close it)
+    """
+    return SessionLocal()

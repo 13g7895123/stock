@@ -5,10 +5,10 @@
 export const useApi = () => {
   const config = useRuntimeConfig()
   
-  // API基礎URL
+  // API基礎URL - 使用.env中配置的API_PORT (9127)
   const API_BASE_URL = process.env.NODE_ENV === 'production' 
     ? config.public.apiUrl 
-    : 'http://localhost:9121/api/v1'
+    : 'http://localhost:9127/api/v1'
 
   /**
    * 通用API請求函數

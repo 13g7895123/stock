@@ -140,7 +140,7 @@ class StockHistoryService:
             
             # 建立查詢
             query = self.db_session.query(StockDailyData).filter(
-                StockDailyData.stock_id == symbol
+                StockDailyData.stock_code == symbol
             )
             
             # 日期範圍篩選
@@ -224,7 +224,7 @@ class StockHistoryService:
             
             latest_record = (
                 self.db_session.query(StockDailyData)
-                .filter(StockDailyData.stock_id == symbol)
+                .filter(StockDailyData.stock_code == symbol)
                 .order_by(desc(StockDailyData.trade_date))
                 .first()
             )
@@ -249,7 +249,7 @@ class StockHistoryService:
                 raise ValueError(f"Invalid stock symbol: {symbol}")
             
             query = self.db_session.query(StockDailyData).filter(
-                StockDailyData.stock_id == symbol
+                StockDailyData.stock_code == symbol
             )
             
             total_records = query.count()
@@ -304,7 +304,7 @@ class StockHistoryService:
             
             # 取得有資料的股票數量（不重複的股票代號）
             total_stocks = (
-                self.db_session.query(StockDailyData.stock_id)
+                self.db_session.query(StockDailyData.stock_code)
                 .distinct()
                 .count()
             )
@@ -341,4 +341,121 @@ class StockHistoryService:
             
         except Exception as e:
             logger.error(f"Error getting overall statistics: {e}")
+            raise
+    
+    def get_stocks_with_data(
+        self, 
+        page: int = 1, 
+        limit: int = 50,
+        sort_by: str = "record_count",
+        sort_order: str = "desc"
+    ) -> Dict[str, Any]:
+        """取得有歷史資料的股票清單
+        
+        Args:
+            page: 頁數 (從1開始)
+            limit: 每頁數量
+            sort_by: 排序欄位 (record_count, latest_date, earliest_date, stock_code)
+            sort_order: 排序方向 (asc, desc)
+            
+        Returns:
+            Dict[str, Any]: 股票清單及統計資訊
+        """
+        try:
+            # 參數驗證
+            self.validate_pagination(page, limit)
+            
+            # 建立基礎查詢：取得每個股票的統計資料
+            base_query = (
+                self.db_session.query(
+                    StockDailyData.stock_code,
+                    func.count(StockDailyData.stock_code).label('record_count'),
+                    func.min(StockDailyData.trade_date).label('earliest_date'),
+                    func.max(StockDailyData.trade_date).label('latest_date'),
+                    func.avg(StockDailyData.close_price).label('avg_close_price'),
+                    func.sum(StockDailyData.volume).label('total_volume')
+                )
+                .group_by(StockDailyData.stock_code)
+            )
+            
+            # 取得總股票數
+            total_stocks = base_query.count()
+            
+            # 排序設定
+            sort_column_map = {
+                "record_count": "record_count",
+                "latest_date": "latest_date", 
+                "earliest_date": "earliest_date",
+                "stock_code": StockDailyData.stock_code,
+                "avg_close_price": "avg_close_price",
+                "total_volume": "total_volume"
+            }
+            
+            sort_column = sort_column_map.get(sort_by, "record_count")
+            
+            if sort_order.lower() == "desc":
+                if sort_by == "stock_code":
+                    query = base_query.order_by(desc(sort_column))
+                else:
+                    query = base_query.order_by(desc(sort_column))
+            else:
+                if sort_by == "stock_code":
+                    query = base_query.order_by(asc(sort_column))
+                else:
+                    query = base_query.order_by(asc(sort_column))
+            
+            # 分頁
+            offset = (page - 1) * limit
+            results = query.offset(offset).limit(limit).all()
+            
+            # 整理資料格式
+            stocks_data = []
+            for result in results:
+                # 取得股票名稱（如果存在）
+                stock_info = (
+                    self.db_session.query(Stock)
+                    .filter(Stock.stock_code == result.stock_code)
+                    .first()
+                )
+                
+                stock_name = stock_info.stock_name if stock_info else "未知股票"
+                
+                stocks_data.append({
+                    "stock_code": result.stock_code,
+                    "stock_name": stock_name,
+                    "record_count": result.record_count,
+                    "earliest_date": result.earliest_date.strftime('%Y-%m-%d') if result.earliest_date else None,
+                    "latest_date": result.latest_date.strftime('%Y-%m-%d') if result.latest_date else None,
+                    "avg_close_price": round(float(result.avg_close_price), 2) if result.avg_close_price else 0,
+                    "total_volume": int(result.total_volume) if result.total_volume else 0,
+                    "data_period_days": (result.latest_date - result.earliest_date).days + 1 if result.latest_date and result.earliest_date else 0
+                })
+            
+            # 計算分頁資訊
+            total_pages = (total_stocks + limit - 1) // limit
+            has_next = page < total_pages
+            has_previous = page > 1
+            
+            logger.info(f"Successfully retrieved {len(stocks_data)} stocks with data (page {page})")
+            
+            return {
+                "status": "success",
+                "stocks": stocks_data,
+                "total_stocks": total_stocks,
+                "pagination": {
+                    "page": page,
+                    "limit": limit,
+                    "total_pages": total_pages,
+                    "has_next": has_next,
+                    "has_previous": has_previous
+                },
+                "query_params": {
+                    "sort_by": sort_by,
+                    "sort_order": sort_order
+                },
+                "message": f"Retrieved {len(stocks_data)} stocks with historical data"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting stocks with data: {e}")
             raise

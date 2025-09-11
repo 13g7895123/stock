@@ -3,7 +3,7 @@
 import re
 import logging
 from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import httpx
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
@@ -32,8 +32,8 @@ class DailyDataService:
     def validate_daily_data(self, data: Dict[str, Any]) -> bool:
         """Validate daily stock data format and required fields."""
         required_fields = [
-            "stock_id", "trade_date", "open_price", "high_price", 
-            "low_price", "close_price", "volume", "adjusted_close"
+            "stock_code", "trade_date", "open_price", "high_price", 
+            "low_price", "close_price", "volume"
         ]
         
         # Check required fields
@@ -42,10 +42,10 @@ class DailyDataService:
                 logger.warning(f"Missing required field: {field} in daily data")
                 return False
         
-        # Validate stock_id format (4-digit non-zero-prefix)
-        stock_id = data["stock_id"]
-        if not re.match(r"^[1-9]\d{3}$", str(stock_id)):
-            logger.warning(f"Invalid stock_id format: {stock_id}")
+        # Validate stock_code format (4-digit non-zero-prefix)
+        stock_code = data["stock_code"]
+        if not re.match(r"^[1-9]\d{3}$", str(stock_code)):
+            logger.warning(f"Invalid stock_code format: {stock_code}")
             return False
         
         # Validate trade_date is datetime or date
@@ -54,12 +54,16 @@ class DailyDataService:
             logger.warning(f"Invalid trade_date type: {type(trade_date)}")
             return False
         
-        # Validate price fields are positive numbers
-        price_fields = ["open_price", "high_price", "low_price", "close_price", "adjusted_close"]
+        # Validate price fields are positive numbers and reasonable ranges
+        price_fields = ["open_price", "high_price", "low_price", "close_price"]
         for field in price_fields:
             price = data[field]
             if not isinstance(price, (int, float)) or price <= 0:
                 logger.warning(f"Invalid {field}: {price} (must be positive number)")
+                return False
+            # Check price is within reasonable range for Taiwan stocks (0.01 - 10000)
+            if price < 0.01 or price > 10000:
+                logger.warning(f"Invalid {field}: {price} (price out of reasonable range 0.01-10000)")
                 return False
         
         # Validate volume is non-negative integer
@@ -83,6 +87,37 @@ class DailyDataService:
         
         return True
     
+    def is_stock_data_up_to_date(self, stock_id: str) -> bool:
+        """Check if stock data is up to date (within last 3 days to account for weekends)."""
+        try:
+            latest_date = self.get_latest_date_from_database(stock_id)
+            if not latest_date:
+                return False
+            
+            # Convert to date if it's datetime
+            if isinstance(latest_date, datetime):
+                latest_date = latest_date.date()
+            
+            # Check if the latest data is within reasonable time range
+            today = date.today()
+            days_diff = (today - latest_date).days
+            
+            # Consider up-to-date if data is from last 7 days 
+            # This accounts for weekends and holidays when there's no trading
+            # 7 days should cover most weekend and holiday scenarios
+            is_recent = days_diff <= 7
+            
+            if is_recent:
+                logger.info(f"Stock {stock_id} data is up to date (latest: {latest_date}, {days_diff} days ago)")
+            else:
+                logger.info(f"Stock {stock_id} data needs update (latest: {latest_date}, {days_diff} days ago)")
+                
+            return is_recent
+            
+        except Exception as e:
+            logger.error(f"Error checking if stock {stock_id} data is up to date: {e}")
+            return False
+    
     def build_broker_url(self, base_url: str, stock_id: str) -> str:
         """Build the complete broker URL with stock parameters."""
         # Remove trailing slash and add the specific path
@@ -97,7 +132,7 @@ class DailyDataService:
         try:
             parts = response_text.split(',')
             
-            # Step 1: Extract all dates and separate all numeric values
+            # Step 1: Extract all dates and all numeric values
             dates = []
             all_numbers = []
             
@@ -114,7 +149,7 @@ class DailyDataService:
                     except ValueError:
                         pass
                 elif '/' in part and len(part.split('/')) == 3:
-                    # Pure date
+                    # Pure date (YYYY/MM/DD format)
                     dates.append(part)
                 elif ' ' in part:
                     # Handle mixed volume-price format like "1195 258.2756"
@@ -131,31 +166,86 @@ class DailyDataService:
                     except ValueError:
                         pass
             
-            logger.debug(f"Extracted {len(dates)} dates and {len(all_numbers)} numbers")
+            logger.info(f"Extracted {len(dates)} dates and {len(all_numbers)} numbers for {stock_id}")
             
             if len(dates) == 0 or len(all_numbers) == 0:
                 logger.warning("No valid dates or numbers found in broker response")
                 return []
             
-            # Step 2: Alternative approach - try to find valid OHLCV patterns
-            logger.debug(f"Attempting to find OHLCV patterns in {len(all_numbers)} numbers for {len(dates)} dates")
+            # Step 2: Improved parsing - assume 5 values per date (OHLCV)
+            values_per_date = 5
+            expected_numbers = len(dates) * values_per_date
             
-            # Method 1: Try different offset positions to find where actual price data starts
-            # Skip the first few numbers that might be metadata
-            for start_offset in [0, 1, 2, 3]:
-                if self._try_parse_with_offset(dates, all_numbers, start_offset, stock_id, daily_data):
-                    logger.debug(f"Successfully parsed data with offset {start_offset}")
-                    break
+            if len(all_numbers) >= expected_numbers:
+                # We have enough numbers - parse sequentially
+                for i, date_str in enumerate(dates):
+                    try:
+                        trade_date = datetime.strptime(date_str, '%Y/%m/%d')
+                        
+                        # Calculate indices for this date's data
+                        start_idx = i * values_per_date
+                        
+                        if start_idx + values_per_date <= len(all_numbers):
+                            # Extract OHLCV values
+                            open_price = all_numbers[start_idx]
+                            high_price = all_numbers[start_idx + 1] 
+                            low_price = all_numbers[start_idx + 2]
+                            close_price = all_numbers[start_idx + 3]
+                            volume = all_numbers[start_idx + 4]
+                            
+                            # Apply price scaling if needed (broker data often scaled by 100)
+                            if open_price > 1000:
+                                open_price = round(open_price / 100, 4)
+                                high_price = round(high_price / 100, 4)
+                                low_price = round(low_price / 100, 4)
+                                close_price = round(close_price / 100, 4)
+                            
+                            # Basic validation - ensure prices are reasonable
+                            if (all(p > 0 for p in [open_price, high_price, low_price, close_price]) and
+                                low_price <= min(open_price, close_price) and
+                                high_price >= max(open_price, close_price) and
+                                high_price >= low_price and
+                                volume >= 0):
+                                
+                                data_item = {
+                                    "stock_code": stock_id,
+                                    "trade_date": trade_date,
+                                    "open_price": open_price,
+                                    "high_price": high_price,
+                                    "low_price": low_price,
+                                    "close_price": close_price,
+                                    "volume": int(volume)
+                                }
+                                
+                                if self.validate_daily_data(data_item):
+                                    daily_data.append(data_item)
+                                    
+                    except Exception as e:
+                        logger.debug(f"Error parsing date {date_str}: {e}")
+                        continue
+                        
+                logger.info(f"Sequential parsing extracted {len(daily_data)} valid records for {stock_id}")
             
-            # Method 2: If that fails, try to find realistic price ranges
-            if not daily_data:
-                self._try_parse_by_price_range(dates, all_numbers, stock_id, daily_data)
+            # Fallback: Use the original parsing methods if sequential parsing didn't work well
+            if len(daily_data) < len(dates) * 0.5:  # If we got less than 50% of expected records
+                logger.info(f"Sequential parsing yielded low results, trying alternative methods for {stock_id}")
+                daily_data = []  # Reset
+                
+                # Method 1: Try different offset positions to find where actual price data starts
+                for start_offset in [0, 1, 2, 3]:
+                    if self._try_parse_with_offset(dates, all_numbers, start_offset, stock_id, daily_data):
+                        logger.debug(f"Successfully parsed data with offset {start_offset}")
+                        break
+                
+                # Method 2: If that fails, try to find realistic price ranges
+                if not daily_data:
+                    self._try_parse_by_price_range(dates, all_numbers, stock_id, daily_data)
         
         except Exception as e:
             logger.error(f"Error parsing broker response: {e}")
             return []
         
-        logger.info(f"Parsed {len(daily_data)} records for stock {stock_id}")
+        logger.info(f"Final result: Parsed {len(daily_data)} records for stock {stock_id}")
         return daily_data
     
     def _try_parse_with_offset(self, dates, all_numbers, offset, stock_id, daily_data):
@@ -187,6 +277,13 @@ class DailyDataService:
                             close_price = data_points[3]
                             volume = int(data_points[4]) if len(data_points) > 4 else 0
                             
+                            # Apply price scaling if needed (convert from cents to dollars)
+                            if all(p > 1000 for p in [open_price, high_price, low_price, close_price]):
+                                open_price = round(open_price / 100, 2)
+                                high_price = round(high_price / 100, 2)
+                                low_price = round(low_price / 100, 2)
+                                close_price = round(close_price / 100, 2)
+                            
                             # Quick validation to see if this pattern makes sense
                             if (all(p > 0 for p in [open_price, high_price, low_price, close_price]) and
                                 low_price <= min(open_price, close_price) and
@@ -194,14 +291,13 @@ class DailyDataService:
                                 high_price >= low_price):
                                 
                                 data_item = {
-                                    "stock_id": stock_id,
+                                    "stock_code": stock_id,  # Note: stock_id parameter is actually stock_code
                                     "trade_date": trade_date,
                                     "open_price": open_price,
                                     "high_price": high_price,
                                     "low_price": low_price,
                                     "close_price": close_price,
-                                    "volume": volume,
-                                    "adjusted_close": close_price
+                                    "volume": volume
                                 }
                                 
                                 if self.validate_daily_data(data_item):
@@ -243,15 +339,24 @@ class DailyDataService:
                         # Sort to get potential OHLC
                         sorted_prices = sorted(prices)
                         
+                        # Apply price scaling if needed
+                        scaled_prices = []
+                        for price in prices:
+                            if price > 1000:
+                                scaled_prices.append(round(price / 100, 2))
+                            else:
+                                scaled_prices.append(price)
+                        
+                        sorted_scaled_prices = sorted(scaled_prices)
+                        
                         data_item = {
-                            "stock_id": stock_id,
+                            "stock_code": stock_id,  # Note: stock_id parameter is actually stock_code
                             "trade_date": trade_date,
-                            "open_price": prices[0],      # Use original order
-                            "high_price": sorted_prices[-1],  # Highest
-                            "low_price": sorted_prices[0],    # Lowest  
-                            "close_price": prices[-1],       # Use original order
-                            "volume": volume_candidates[i] if i < len(volume_candidates) else 0,
-                            "adjusted_close": prices[-1]
+                            "open_price": scaled_prices[0],      # Use original order
+                            "high_price": sorted_scaled_prices[-1],  # Highest
+                            "low_price": sorted_scaled_prices[0],    # Lowest  
+                            "close_price": scaled_prices[-1],       # Use original order
+                            "volume": volume_candidates[i] if i < len(volume_candidates) else 0
                         }
                         
                         if self.validate_daily_data(data_item):
@@ -336,7 +441,7 @@ class DailyDataService:
             
             latest_record = (
                 self.db_session.query(StockDailyData)
-                .filter(StockDailyData.stock_id == stock_id)
+                .filter(StockDailyData.stock_code == stock_id)
                 .order_by(desc(StockDailyData.trade_date))
                 .first()
             )
@@ -366,14 +471,14 @@ class DailyDataService:
                     logger.warning(f"Skipping invalid data: {data}")
                     continue
                 
-                stock_id = data["stock_id"]
+                stock_code = data["stock_code"]
                 trade_date = data["trade_date"]
                 
                 # Check if record already exists
                 existing_record = (
                     self.db_session.query(StockDailyData)
                     .filter(
-                        StockDailyData.stock_id == stock_id,
+                        StockDailyData.stock_code == stock_code,
                         StockDailyData.trade_date == trade_date
                     )
                     .first()
@@ -386,24 +491,28 @@ class DailyDataService:
                     existing_record.low_price = data["low_price"]
                     existing_record.close_price = data["close_price"]
                     existing_record.volume = data["volume"]
-                    existing_record.adjusted_close = data["adjusted_close"]
+                    existing_record.data_source = "broker_crawler"
+                    existing_record.data_quality = "corrected_daily"
+                    existing_record.is_validated = True
                     updated_count += 1
-                    logger.debug(f"Updated record for {stock_id} on {trade_date.date()}")
+                    logger.debug(f"Updated record for {stock_code} on {trade_date.date()}")
                 else:
                     # Create new record
                     new_record = StockDailyData(
-                        stock_id=stock_id,
+                        stock_code=stock_code,
                         trade_date=trade_date,
                         open_price=data["open_price"],
                         high_price=data["high_price"],
                         low_price=data["low_price"],
                         close_price=data["close_price"],
                         volume=data["volume"],
-                        adjusted_close=data["adjusted_close"]
+                        data_source="broker_crawler",
+                        data_quality="corrected_daily",
+                        is_validated=True
                     )
                     self.db_session.add(new_record)
                     created_count += 1
-                    logger.debug(f"Created new record for {stock_id} on {trade_date.date()}")
+                    logger.debug(f"Created new record for {stock_code} on {trade_date.date()}")
             
             self.db_session.commit()
             logger.info(f"Database operation completed: {created_count} created, {updated_count} updated")
@@ -415,10 +524,26 @@ class DailyDataService:
             logger.error(f"Error saving daily data to database: {e}")
             raise
     
-    async def get_daily_data_for_stock(self, stock_id: str) -> Dict[str, Any]:
-        """Get daily data for a stock (main service method)."""
+    async def get_daily_data_for_stock(self, stock_id: str, force_update: bool = False) -> Dict[str, Any]:
+        """Get daily data for a stock (main service method with intelligent skip)."""
         try:
             logger.info(f"Starting daily data fetch for stock {stock_id}")
+            
+            # 0. Smart skip: Check if data is up to date (unless force update)
+            if not force_update and self.is_stock_data_up_to_date(stock_id):
+                latest_date = self.get_latest_date_from_database(stock_id)
+                result = {
+                    "status": "skipped",
+                    "stock_code": stock_id,
+                    "records_processed": 0,
+                    "created": 0,
+                    "updated": 0,
+                    "latest_date": latest_date.isoformat() if latest_date else None,
+                    "reason": "Stock data is already up to date",
+                    "timestamp": datetime.now().isoformat()
+                }
+                logger.info(f"Skipped processing for {stock_id} - data already up to date")
+                return result
             
             # 1. Fetch data from brokers
             daily_data = await self.fetch_daily_data_from_all_brokers(stock_id)
@@ -429,7 +554,7 @@ class DailyDataService:
             # 3. Return success result
             result = {
                 "status": "success",
-                "stock_id": stock_id,
+                "stock_code": stock_id,
                 "records_processed": len(daily_data),
                 "created": save_result["created"],
                 "updated": save_result["updated"],
@@ -443,7 +568,7 @@ class DailyDataService:
             logger.error(f"Error processing daily data for {stock_id}: {e}")
             return {
                 "status": "error",
-                "stock_id": stock_id,
+                "stock_code": stock_id,
                 "error": str(e),
                 "timestamp": datetime.now().isoformat()
             }

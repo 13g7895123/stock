@@ -272,12 +272,12 @@ class StockListService:
                 
             symbol = stock_data["symbol"]
             existing_stock = self.db_session.query(Stock).filter(
-                Stock.symbol == symbol
+                Stock.stock_code == symbol
             ).first()
             
             if existing_stock:
                 # 更新既有股票
-                existing_stock.name = stock_data["name"]
+                existing_stock.stock_name = stock_data["name"]
                 existing_stock.market = stock_data["market"]
                 existing_stock.is_active = True
                 updated_count += 1
@@ -285,8 +285,8 @@ class StockListService:
             else:
                 # 新增股票
                 new_stock = Stock(
-                    symbol=symbol,
-                    name=stock_data["name"],
+                    stock_code=symbol,
+                    stock_name=stock_data["name"],
                     market=stock_data["market"],
                     is_active=True
                 )
@@ -321,14 +321,14 @@ class StockListService:
         # 找出資料庫中有但當前擷取清單沒有的股票
         missing_stocks = self.db_session.query(Stock).filter(
             Stock.is_active == True,
-            ~Stock.symbol.in_(current_symbols)
+            ~Stock.stock_code.in_(current_symbols)
         ).all()
         
         deactivated_count = 0
         for stock in missing_stocks:
             stock.is_active = False
             deactivated_count += 1
-            logger.debug(f"Deactivated stock: {stock.symbol}")
+            logger.debug(f"Deactivated stock: {stock.stock_code}")
         
         if deactivated_count > 0:
             self.db_session.commit()

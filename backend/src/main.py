@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 
-from src.api.endpoints import health, stocks, stock_sync, data
+from src.api.endpoints import health, stocks, stock_sync, data, tasks, task_execution
 from src.core.config import settings
 from src.core.database import create_tables
 
@@ -59,10 +59,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Add middleware
+# Add middleware - temporary development CORS settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=["*"] if settings.DEBUG else settings.CORS_ORIGINS,
     allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
     allow_methods=settings.CORS_ALLOW_METHODS,
     allow_headers=settings.CORS_ALLOW_HEADERS,
@@ -101,6 +101,18 @@ app.include_router(
     data.router,
     prefix="/api/v1/data",
     tags=["Data Management"]
+)
+
+app.include_router(
+    tasks.router,
+    prefix="/api/v1/tasks",
+    tags=["Task Management"]
+)
+
+app.include_router(
+    task_execution.router,
+    prefix="/api/v1/task-execution",
+    tags=["Task Execution Logs"]
 )
 
 # Global exception handler

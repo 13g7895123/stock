@@ -14,16 +14,33 @@ class Stock(Base):
     __tablename__ = "stocks"
     
     id = Column(Integer, primary_key=True, index=True)
-    symbol = Column(String(20), unique=True, nullable=False, index=True, comment="股票代號")
-    name = Column(String(255), nullable=False, comment="股票名稱")
+    stock_code = Column(String(20), unique=True, nullable=False, index=True, comment="股票代號")
+    stock_name = Column(String(255), nullable=False, comment="股票名稱")
     market = Column(String(10), nullable=False, comment="市場別(TSE/TPEx)")
     industry = Column(String(100), comment="產業別")
     is_active = Column(Boolean, default=True, comment="是否啟用")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
+    # 向後相容的屬性
+    @property
+    def symbol(self):
+        return self.stock_code
+    
+    @symbol.setter
+    def symbol(self, value):
+        self.stock_code = value
+    
+    @property
+    def name(self):
+        return self.stock_name
+    
+    @name.setter
+    def name(self, value):
+        self.stock_name = value
+    
     def __repr__(self) -> str:
-        return f"<Stock(symbol='{self.symbol}', name='{self.name}', market='{self.market}')>"
+        return f"<Stock(stock_code='{self.stock_code}', stock_name='{self.stock_name}', market='{self.market}')>"
 
 
 class StockDailyData(Base):
@@ -147,3 +164,35 @@ class StockScores(Base):
     
     def __repr__(self) -> str:
         return f"<StockScores(stock_id='{self.stock_id}', score_date='{self.score_date}', total_score={self.total_score})>"
+
+
+class TaskExecutionLog(Base):
+    """Task execution log model - 任務執行紀錄表."""
+    
+    __tablename__ = "task_execution_logs"
+    
+    id = Column(BigInteger, primary_key=True, index=True)
+    task_name = Column(String(100), nullable=False, index=True, comment="任務名稱")
+    task_type = Column(String(50), nullable=False, comment="任務類型")
+    parameters = Column(String, comment="執行參數(JSON格式)")
+    status = Column(String(20), nullable=False, default="running", comment="執行狀態: running, completed, failed, cancelled")
+    start_time = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), comment="開始時間")
+    end_time = Column(DateTime(timezone=True), comment="結束時間")
+    duration_seconds = Column(Float, comment="執行時長(秒)")
+    progress = Column(Integer, default=0, comment="執行進度(0-100)")
+    processed_count = Column(Integer, default=0, comment="已處理數量")
+    total_count = Column(Integer, default=0, comment="總數量")
+    success_count = Column(Integer, default=0, comment="成功數量")
+    error_count = Column(Integer, default=0, comment="錯誤數量")
+    result_summary = Column(String, comment="執行結果摘要")
+    error_message = Column(String, comment="錯誤訊息")
+    created_by = Column(String(50), comment="執行者")
+    
+    __table_args__ = (
+        Index('idx_task_start_time', 'start_time'),
+        Index('idx_task_status', 'status'),
+        Index('idx_task_type_time', 'task_type', 'start_time'),
+    )
+    
+    def __repr__(self) -> str:
+        return f"<TaskExecutionLog(id={self.id}, task_name='{self.task_name}', status='{self.status}')>"

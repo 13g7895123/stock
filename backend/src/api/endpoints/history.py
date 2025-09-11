@@ -64,6 +64,101 @@ async def get_overall_statistics(
         )
 
 
+@router.get("/history/stocks-with-data", response_model=Dict[str, Any])
+async def get_stocks_with_data(
+    page: int = Query(
+        1, 
+        ge=1, 
+        description="頁數，從1開始",
+        example=1
+    ),
+    limit: int = Query(
+        50, 
+        ge=1, 
+        le=1000, 
+        description="每頁資料筆數，最多1000筆",
+        example=50
+    ),
+    sort_by: str = Query(
+        "record_count", 
+        description="排序欄位 (record_count, latest_date, earliest_date, stock_code, avg_close_price, total_volume)",
+        example="record_count"
+    ),
+    sort_order: str = Query(
+        "desc", 
+        description="排序方向 (asc/desc)",
+        example="desc"
+    ),
+    history_service: StockHistoryService = Depends(get_stock_history_service)
+) -> Dict[str, Any]:
+    """取得有歷史資料的股票清單
+    
+    此API端點回傳所有在系統中有歷史交易資料的股票清單，
+    包含每檔股票的統計資訊如資料筆數、日期範圍、平均價格等。
+    
+    **支援的排序欄位：**
+    - record_count: 資料筆數（預設）
+    - latest_date: 最新資料日期
+    - earliest_date: 最早資料日期
+    - stock_code: 股票代號
+    - avg_close_price: 平均收盤價
+    - total_volume: 總成交量
+    
+    **回傳資料格式：**
+    - status: 查詢狀態
+    - stocks: 股票清單陣列
+      - stock_code: 股票代號
+      - stock_name: 股票名稱
+      - record_count: 歷史資料筆數
+      - earliest_date: 最早資料日期
+      - latest_date: 最新資料日期
+      - avg_close_price: 平均收盤價
+      - total_volume: 總成交量
+      - data_period_days: 資料期間天數
+    - total_stocks: 總股票數
+    - pagination: 分頁資訊
+    - query_params: 查詢參數
+    
+    **範例用法：**
+    - 取得所有股票：`/api/v1/data/history/stocks-with-data`
+    - 按資料筆數排序：`/api/v1/data/history/stocks-with-data?sort_by=record_count&sort_order=desc`
+    - 按股票代號排序：`/api/v1/data/history/stocks-with-data?sort_by=stock_code&sort_order=asc`
+    - 分頁查詢：`/api/v1/data/history/stocks-with-data?page=2&limit=20`
+    """
+    try:
+        logger.info(f"Received stocks with data request with params: "
+                   f"page={page}, limit={limit}, sort_by={sort_by}, sort_order={sort_order}")
+        
+        # 呼叫服務層取得股票清單
+        result = history_service.get_stocks_with_data(
+            page=page,
+            limit=limit,
+            sort_by=sort_by,
+            sort_order=sort_order
+        )
+        
+        logger.info(f"Successfully retrieved stocks with data: "
+                   f"{result['total_stocks']} total stocks, "
+                   f"{len(result['stocks'])} stocks in current page")
+        
+        return result
+        
+    except ValueError as e:
+        # 參數驗證錯誤
+        logger.warning(f"Invalid parameters for stocks with data request: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+    except Exception as e:
+        # 其他系統錯誤
+        logger.error(f"Unexpected error retrieving stocks with data: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error while retrieving stocks with data"
+        )
+
+
 @router.get("/history/{symbol}", response_model=Dict[str, Any])
 async def get_stock_history(
     symbol: str,

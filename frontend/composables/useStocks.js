@@ -159,17 +159,17 @@ export const useStocks = () => {
   }
 
   /**
-   * 更新單一股票歷史資料
+   * 更新單一股票歷史資料（爬取日線資料）
    */
   const updateStockData = async (symbol) => {
     loading.value = true
     error.value = null
     
     try {
-      const result = await post(`/stocks/${symbol}/update`)
+      const result = await get(`/data/daily/${symbol}`)
       
-      if (result.success || result.message) {
-        return result
+      if (result.success) {
+        return result.data
       } else {
         error.value = result.error
         return null
@@ -180,7 +180,8 @@ export const useStocks = () => {
   }
 
   /**
-   * 更新所有股票歷史資料
+   * 更新所有股票歷史資料（使用TWSE API）
+   * @deprecated 使用 batchUpdateWithBrokerCrawler 代替
    */
   const updateAllStockData = async (symbols = null) => {
     loading.value = true
@@ -194,6 +195,27 @@ export const useStocks = () => {
         return result
       } else {
         error.value = result.error
+        return null
+      }
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
+   * 使用broker爬蟲批次更新股票歷史資料（使用8個broker網站）
+   */
+  const batchUpdateWithBrokerCrawler = async (symbols = null) => {
+    loading.value = true
+    error.value = null
+    
+    try {
+      const result = await post('/data/daily/batch-update', symbols)
+      
+      if (result.success || result.status === 'completed') {
+        return result.data || result
+      } else {
+        error.value = result.error || result.detail
         return null
       }
     } finally {
@@ -222,6 +244,27 @@ export const useStocks = () => {
     }
   }
 
+  /**
+   * 獲取有歷史資料的股票清單
+   */
+  const getStocksWithData = async (params = {}) => {
+    loading.value = true
+    error.value = null
+    
+    try {
+      const result = await get('/data/history/stocks-with-data', params)
+      
+      if (result.success) {
+        return result.data
+      } else {
+        error.value = result.error
+        return null
+      }
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     // 響應式資料
     stocks: readonly(stocks),
@@ -237,7 +280,9 @@ export const useStocks = () => {
     getStockStats,
     getLatestTradeDate,
     updateStockData,
-    updateAllStockData,
-    getOverallStats
+    updateAllStockData, // 保留舊的API以相容性
+    batchUpdateWithBrokerCrawler, // 新的broker爬蟲API
+    getOverallStats,
+    getStocksWithData // 新的有資料股票清單API
   }
 }

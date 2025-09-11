@@ -33,7 +33,7 @@ const props = defineProps({
   },
   // 按鈕圖示 (Heroicon 組件)
   icon: {
-    type: [Object, String],
+    type: [Object, String, Function],
     default: null
   },
   // 按鈕樣式類型

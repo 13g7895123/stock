@@ -159,7 +159,7 @@ async def trigger_data_update(
 
 @router.post("/update-all")
 async def trigger_all_data_update(
-    symbols: Optional[List[str]] = Body(None),
+    symbols: Optional[List[str]] = Body(default=None),
     background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:

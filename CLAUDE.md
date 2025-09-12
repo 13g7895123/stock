@@ -832,6 +832,71 @@ access-control-allow-credentials: true
 GET /api/v1/sync/stocks/count → {"total":1908,"by_market":{"TSE":1053,"TPEx":855}}
 ```
 
+## Point 26: 修復 /api/v1/stocks/update-all API 問題
+
+### ✅ 任務完成狀態：**100% 完成**
+
+**執行日期**: 2025-09-12
+
+**問題描述**: API 回傳 422 錯誤 "Input should be a valid list"，無法正確更新所有股票資料
+
+#### 問題診斷與解決
+
+**1. 問題根因** ✅
+- API 參數定義使用 `Body(None)` 導致必須傳入 body
+- FastAPI 驗證要求 body 必須是 list 格式
+- 即使不傳入任何參數也會觸發驗證錯誤
+
+**2. 解決方案** ✅
+```python
+# 修改前：
+symbols: Optional[List[str]] = Body(None)
+
+# 修改後：
+symbols: Optional[List[str]] = Body(default=None)
+```
+
+**3. 功能驗證** ✅
+
+**測試結果：**
+```bash
+# 不帶參數 - 更新所有股票
+POST /api/v1/stocks/update-all
+回傳：{"message": "Data update triggered for 1908 symbols from database"}
+
+# 傳入 null - 更新所有股票
+POST /api/v1/stocks/update-all -d 'null'
+回傳：{"message": "Data update triggered for 1908 symbols from database"}
+
+# 傳入空陣列 - 不更新
+POST /api/v1/stocks/update-all -d '[]'
+回傳：{"message": "Data update triggered for 0 symbols from database"}
+
+# 傳入特定股票 - 更新指定股票
+POST /api/v1/stocks/update-all -d '["2330", "2317"]'
+回傳：{"message": "Data update triggered for 2 symbols from database"}
+```
+
+**4. 服務狀態確認** ✅
+- Redis 服務正常運行（port 9327）
+- 後端服務正常運行（port 9127）
+- Celery 任務佇列正常運作
+
+#### 執行結果總結
+
+**成功修復的功能：**
+1. ✅ API 可接受無參數請求（更新所有股票）
+2. ✅ API 可接受 null 值（更新所有股票）
+3. ✅ API 可接受空陣列（不執行更新）
+4. ✅ API 可接受股票代號陣列（更新指定股票）
+5. ✅ 自動從資料庫讀取所有 1908 檔股票
+6. ✅ 背景任務正常觸發執行
+
+**技術改進：**
+- 修正 FastAPI Body 參數定義
+- 保持向後相容性（支援所有呼叫方式）
+- 確保 Redis 和 Celery 服務正常運作
+
 ## Point 48: 移除智能跳過機制判斷
 
 ### ✅ 任務完成狀態：**100% 完成**

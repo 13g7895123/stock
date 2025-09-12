@@ -333,9 +333,9 @@ const pageTitle = computed(() => {
     '/help/docs': t('nav.docs'),
     '/stocks/list': '股票清單管理',
     '/stocks/history': '股票歷史資料',
-    '/data/historical': '歷史資料管理',
-    '/data/update': '資料更新管理',
-    '/data/quality': '資料品質管理'
+    '/market-data/historical': '歷史資料管理',
+    '/market-data/update': '資料更新管理',
+    '/market-data/quality': '資料品質管理'
   }
   return titles[route.path] || 'Page'
 })

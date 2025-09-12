@@ -23,9 +23,9 @@ export const useSettingsStore = defineStore('settings', () => {
       name: '資料管理',
       icon: 'CircleStackIcon',
       children: [
-        { name: '歷史資料', href: '/data/historical' },
-        { name: '資料更新', href: '/data/update' },
-        { name: '資料品質', href: '/data/quality' }
+        { name: '歷史資料', href: '/market-data/historical' },
+        { name: '資料更新', href: '/market-data/update' },
+        { name: '資料品質', href: '/market-data/quality' }
       ]
     },
     {

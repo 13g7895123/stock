@@ -20,17 +20,54 @@ export const useTasks = () => {
     error.value = null
     
     try {
-      const result = await get('/tasks/manual')
+      // 獲取執行中的任務
+      const runningResult = await get('/task-execution/running')
+      const runningTasksData = runningResult.success ? runningResult.data.running_tasks || [] : []
       
-      if (result.success) {
-        const data = result.data
-        runningTasks.value = data.running_tasks || []
-        taskHistory.value = data.task_history || []
-        return data
-      } else {
-        error.value = result.error
-        return null
+      // 獲取最近任務歷史
+      const recentResult = await get('/task-execution/recent?limit=50')
+      const taskHistoryData = recentResult.success ? recentResult.data.tasks || [] : []
+      
+      // 格式化執行中的任務
+      runningTasks.value = runningTasksData.map(task => ({
+        id: task.id,
+        name: task.task_name,
+        description: task.task_name,
+        status: task.status,
+        startTime: task.start_time ? new Date(task.start_time).toLocaleString('zh-TW') : '-',
+        executionTime: task.duration_seconds ? `${task.duration_seconds.toFixed(0)}秒` : '計算中...',
+        estimatedRemaining: '計算中...',
+        currentStep: task.result_summary || '執行中...',
+        progress: {
+          current: task.processed_count || 0,
+          total: task.total_count || 0,
+          percent: task.progress || 0
+        },
+        recentItems: []
+      }))
+      
+      // 格式化歷史任務
+      taskHistory.value = taskHistoryData.map(task => ({
+        id: task.id,
+        name: task.task_name,
+        description: task.task_name,
+        status: task.status,
+        taskType: task.task_type || 'manual',
+        startTime: task.start_time ? new Date(task.start_time).toLocaleString('zh-TW') : '-',
+        executionTime: task.duration_seconds ? `${task.duration_seconds.toFixed(0)}秒` : '-',
+        processedCount: task.processed_count || 0,
+        successCount: task.success_count || 0,
+        failureCount: task.error_count || 0,
+        errorMessage: task.error_message
+      }))
+      
+      return {
+        running_tasks: runningTasks.value,
+        task_history: taskHistory.value
       }
+    } catch (err) {
+      error.value = err.message
+      return null
     } finally {
       loading.value = false
     }
@@ -67,7 +104,7 @@ export const useTasks = () => {
     error.value = null
     
     try {
-      const result = await del(`/tasks/manual/${taskId}`)
+      const result = await post(`/task-execution/cancel/${taskId}`, { reason: '用戶取消' })
       
       if (result.success) {
         // 重新獲取任務列表
@@ -90,10 +127,28 @@ export const useTasks = () => {
     error.value = null
     
     try {
-      const result = await get(`/tasks/manual/${taskId}`)
+      const result = await get(`/task-execution/status/${taskId}`)
       
       if (result.success) {
-        return result.data
+        const task = result.data.task
+        return {
+          id: task.id,
+          name: task.task_name,
+          type: task.task_type,
+          status: task.status,
+          progress: task.progress,
+          startTime: task.start_time,
+          endTime: task.end_time,
+          duration: task.duration_seconds,
+          processedCount: task.processed_count,
+          totalCount: task.total_count,
+          successCount: task.success_count,
+          errorCount: task.error_count,
+          parameters: task.parameters,
+          resultSummary: task.result_summary,
+          errorMessage: task.error_message,
+          createdBy: task.created_by
+        }
       } else {
         error.value = result.error
         return null

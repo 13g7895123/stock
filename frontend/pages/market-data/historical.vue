@@ -97,27 +97,49 @@
     </div>
 
     <!-- 有資料的股票清單 -->
-    <CollapsibleStockTable
-      title="有資料的股票清單"
-      description="系統中有歷史資料的股票清單及統計資訊"
-      :data="stocksWithData"
-      :loading="stocksListLoading"
-      :initially-expanded="true"
-      @view-details="viewStockHistory"
-      @update-data="updateStockData"
-      @refresh="handleRefreshStocksList"
-    >
-      <template #header-actions>
-        <ActionButton 
-          @click="handleRefreshStocksList"
-          :loading="stocksListLoading"
-          :icon="ArrowPathIcon"
-          text="重新整理"
-          variant="secondary"
-          size="sm"
-        />
-      </template>
-    </CollapsibleStockTable>
+    <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm">
+      <!-- 標題區 -->
+      <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">有資料的股票清單</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">系統中有歷史資料的股票清單及統計資訊</p>
+          </div>
+          
+          <div class="flex items-center space-x-4">
+            <!-- 統計資訊 -->
+            <div class="text-sm text-gray-600 dark:text-gray-400">
+              <span class="font-medium">共 {{ stocksWithData.length }} 檔有資料股票</span>
+              （支援前端分頁與搜尋）
+            </div>
+            
+            <!-- 操作按鈕 -->
+            <ActionButton 
+              @click="handleRefreshStocksList"
+              :loading="stocksListLoading"
+              :icon="ArrowPathIcon"
+              text="重新整理"
+              variant="secondary"
+              size="sm"
+            />
+          </div>
+        </div>
+      </div>
+
+
+      <!-- 股票清單內容 -->
+      <CollapsibleStockTable
+        title=""
+        description=""
+        :data="stocksWithData"
+        :loading="stocksListLoading"
+        :initially-expanded="true"
+        :show-header="false"
+        @view-details="viewStockHistory"
+        @update-data="updateStockData"
+        @refresh="() => handleRefreshStocksList(false)"
+      />
+    </div>
 
     <!-- 資料查詢區域 -->
     <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm p-6">
@@ -353,14 +375,17 @@ const stocksWithData = ref([])
 const stocksListLoading = ref(false)
 const stocksPagination = ref({
   page: 1,
+  limit: 50,
   total_pages: 1,
-  total_stocks: 0
+  total_stocks: 0,
+  has_next: false,
+  has_previous: false
 })
 const stocksQueryParams = ref({
   page: 1,
-  limit: 20,
-  sort_by: 'record_count',
-  sort_order: 'desc'
+  limit: 50,  // 預設載入更多資料
+  sort_by: 'stock_code',  // 預設按股票代號排序
+  sort_order: 'asc'
 })
 
 const queryParams = ref({
@@ -390,6 +415,39 @@ const showNotification = (type, message) => {
     notification.value.show = false
   }, 5000)
 }
+
+// 計算可見的分頁按鈕
+const visibleStockPages = computed(() => {
+  const pages = []
+  const total = stocksPagination.value.total_pages
+  const current = stocksPagination.value.page
+  
+  if (total <= 7) {
+    // 如果總頁數少於等於7頁，顯示所有頁面
+    for (let i = 1; i <= total; i++) {
+      pages.push(i)
+    }
+  } else {
+    // 顯示當前頁面前後各2頁
+    let start = Math.max(1, current - 2)
+    let end = Math.min(total, current + 2)
+    
+    // 確保至少顯示5頁
+    if (end - start < 4) {
+      if (start === 1) {
+        end = Math.min(total, start + 4)
+      } else {
+        start = Math.max(1, end - 4)
+      }
+    }
+    
+    for (let i = start; i <= end; i++) {
+      pages.push(i)
+    }
+  }
+  
+  return pages
+})
 
 // 工具函數
 const formatNumber = (num) => {
@@ -534,45 +592,29 @@ const exportData = () => {
 }
 
 // 股票清單處理函數
-const handleRefreshStocksList = async () => {
+const handleRefreshStocksList = async (showMessage = true) => {
   stocksListLoading.value = true
-  const result = await getStocksWithData(stocksQueryParams.value)
+  // 移除分頁參數，一次性載入所有資料
+  const params = { limit: 9999 } // 設置一個大的限制來獲取所有資料
+  const result = await getStocksWithData(params)
   
   if (result) {
     stocksWithData.value = result.stocks || []
-    stocksPagination.value = {
-      page: result.pagination?.page || 1,
-      total_pages: result.pagination?.total_pages || 1,
-      total_stocks: result.total_stocks || 0
-    }
     
-    if (stocksWithData.value.length > 0) {
-      showNotification('success', `成功載入 ${result.total_stocks} 檔有資料的股票`)
-    } else {
+    if (showMessage && stocksWithData.value.length > 0) {
+      showNotification('success', `載入 ${stocksWithData.value.length} 檔有資料股票`)
+    } else if (showMessage) {
       showNotification('info', '系統中目前沒有任何股票的歷史資料')
     }
   } else {
-    showNotification('error', error.value || '載入股票清單失敗')
+    if (showMessage) {
+      showNotification('error', error.value || '載入股票清單失敗')
+    }
   }
   
   stocksListLoading.value = false
 }
 
-const handleStocksPrevPage = async () => {
-  if (stocksQueryParams.value.page > 1) {
-    stocksQueryParams.value.page--
-    stocksPagination.value.page = stocksQueryParams.value.page
-    await handleRefreshStocksList()
-  }
-}
-
-const handleStocksNextPage = async () => {
-  if (stocksQueryParams.value.page < stocksPagination.value.total_pages) {
-    stocksQueryParams.value.page++
-    stocksPagination.value.page = stocksQueryParams.value.page
-    await handleRefreshStocksList()
-  }
-}
 
 const viewStockHistory = (stockCode) => {
   // 將選中的股票代號填入查詢表單並自動查詢

@@ -32,7 +32,7 @@ export const useSettingsStore = defineStore('settings', () => {
       name: '技術分析',
       icon: 'PresentationChartLineIcon',
       children: [
-        { name: '均線計算', href: '/analysis/moving-averages' },
+        { name: '均線計算', href: '/market-data/moving-averages' },
         { name: '技術指標', href: '/analysis/indicators' },
         { name: '參數設定', href: '/analysis/parameters' }
       ]

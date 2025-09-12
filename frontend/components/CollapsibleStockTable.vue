@@ -2,6 +2,7 @@
   <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm">
     <!-- 可收折的標題列 -->
     <div 
+      v-if="showHeader && (title || description)"
       @click="toggleCollapse"
       class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
     >
@@ -328,6 +329,10 @@ const props = defineProps({
     default: '目前沒有找到符合條件的股票資料'
   },
   initiallyExpanded: {
+    type: Boolean,
+    default: true
+  },
+  showHeader: {
     type: Boolean,
     default: true
   }

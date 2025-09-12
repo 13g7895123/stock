@@ -283,6 +283,20 @@ const {
   startTaskPolling
 } = useTasks()
 
+// 使用API組合式函數
+const { get } = useApi()
+
+// 任務統計資料
+const taskStatistics = ref({
+  total_tasks: 0,
+  running_count: 0,
+  completed_count: 0,
+  failed_count: 0,
+  cancelled_count: 0,
+  success_rate: 0,
+  average_duration: 0
+})
+
 // 響應式資料
 const statusFilter = ref('')
 const typeFilter = ref('')
@@ -292,28 +306,28 @@ const pollCleanup = ref(null)
 const taskStats = computed(() => [
   { 
     name: '執行中', 
-    value: runningTasks.value.length, 
+    value: taskStatistics.value.running_count || runningTasks.value.length, 
     icon: PlayIcon,
     bgColor: 'bg-blue-100 dark:bg-blue-900',
     iconColor: 'text-blue-600 dark:text-blue-400'
   },
   { 
-    name: '今日完成', 
-    value: taskHistory.value.filter(t => t.status === 'completed').length, 
+    name: '已完成', 
+    value: taskStatistics.value.completed_count || taskHistory.value.filter(t => t.status === 'completed').length, 
     icon: CheckCircleIcon,
     bgColor: 'bg-green-100 dark:bg-green-900',
     iconColor: 'text-green-600 dark:text-green-400'
   },
   { 
-    name: '今日失敗', 
-    value: taskHistory.value.filter(t => t.status === 'failed').length, 
+    name: '失敗任務', 
+    value: taskStatistics.value.failed_count || taskHistory.value.filter(t => t.status === 'failed').length, 
     icon: ExclamationCircleIcon,
     bgColor: 'bg-red-100 dark:bg-red-900',
     iconColor: 'text-red-600 dark:text-red-400'
   },
   { 
     name: '平均時長', 
-    value: '8分45秒', 
+    value: formatDuration(taskStatistics.value.average_duration), 
     icon: ClockIcon,
     bgColor: 'bg-gray-100 dark:bg-gray-900',
     iconColor: 'text-gray-600 dark:text-gray-400'
@@ -340,9 +354,41 @@ const hasCompletedTasks = computed(() =>
   taskHistory.value.some(task => task.status === 'completed')
 )
 
+// 輔助函數
+const formatDuration = (seconds) => {
+  if (!seconds || seconds === 0) return '0秒'
+  
+  if (seconds < 60) {
+    return `${Math.round(seconds)}秒`
+  } else if (seconds < 3600) {
+    const minutes = Math.floor(seconds / 60)
+    const remainingSeconds = Math.round(seconds % 60)
+    return remainingSeconds > 0 ? `${minutes}分${remainingSeconds}秒` : `${minutes}分`
+  } else {
+    const hours = Math.floor(seconds / 3600)
+    const remainingMinutes = Math.floor((seconds % 3600) / 60)
+    return remainingMinutes > 0 ? `${hours}時${remainingMinutes}分` : `${hours}時`
+  }
+}
+
+// 獲取統計資料
+const getTaskStatistics = async () => {
+  try {
+    const result = await get('/task-execution/statistics')
+    if (result.success) {
+      taskStatistics.value = result.data.statistics
+    }
+  } catch (error) {
+    console.error('獲取任務統計失敗:', error)
+  }
+}
+
 // 方法
 const refreshTasks = async () => {
-  await getManualTasks()
+  await Promise.all([
+    getManualTasks(),
+    getTaskStatistics()
+  ])
 }
 
 const handleClearCompleted = async () => {
@@ -377,8 +423,8 @@ const getStatusText = (status) => {
 
 // 頁面掛載時初始化
 onMounted(async () => {
-  // 獲取任務資料
-  await getManualTasks()
+  // 獲取任務資料和統計
+  await refreshTasks()
   
   // 如果有執行中的任務，開始輪詢
   if (runningTasks.value.length > 0) {

@@ -265,6 +265,55 @@ export const useStocks = () => {
     }
   }
 
+  /**
+   * 獲取所有有資料的股票（分頁獲取）
+   */
+  const getAllStocksWithData = async () => {
+    loading.value = true
+    error.value = null
+    
+    try {
+      let allStocks = []
+      let page = 1
+      const limit = 1000 // 使用最大允許的限制
+      
+      while (true) {
+        const result = await get('/data/history/stocks-with-data', { 
+          page, 
+          limit,
+          sort_by: 'stock_code',
+          sort_order: 'asc'
+        })
+        
+        if (!result.success) {
+          error.value = result.error
+          return { success: false, error: result.error, stocks: [] }
+        }
+        
+        const pageStocks = result.data?.stocks || []
+        allStocks = allStocks.concat(pageStocks)
+        
+        // 如果這頁的股票數量少於limit，表示已經是最後一頁
+        if (pageStocks.length < limit) {
+          break
+        }
+        
+        page++
+      }
+      
+      return { 
+        success: true, 
+        stocks: allStocks,
+        total: allStocks.length
+      }
+    } catch (error) {
+      error.value = error.message
+      return { success: false, error: error.message, stocks: [] }
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     // 響應式資料
     stocks: readonly(stocks),
@@ -283,6 +332,7 @@ export const useStocks = () => {
     updateAllStockData, // 保留舊的API以相容性
     batchUpdateWithBrokerCrawler, // 新的broker爬蟲API
     getOverallStats,
-    getStocksWithData // 新的有資料股票清單API
+    getStocksWithData, // 新的有資料股票清單API
+    getAllStocksWithData // 獲取所有有資料股票（分頁）
   }
 }

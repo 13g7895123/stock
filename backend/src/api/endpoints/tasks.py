@@ -176,11 +176,17 @@ async def create_stock_crawl_task(
     background_tasks.add_task(run_stock_crawl_task, task_id, valid_symbols, db)
     
     return {
+        "success": True,
         "task_id": task_id,
         "message": f"已創建股票爬蟲任務，將處理 {len(valid_symbols)} 檔股票",
         "symbols_count": len(valid_symbols),
         "status": "created",
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        "data": {
+            "task_id": task_id,
+            "symbols_count": len(valid_symbols),
+            "status": "created"
+        }
     }
 
 @router.delete("/manual/{task_id}", response_model=Dict[str, Any])

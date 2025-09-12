@@ -765,6 +765,90 @@ curl -X OPTIONS "http://localhost:9127/api/v1/stocks/2330"
 - 考慮使用環境變數管理 CORS 允許的來源
 - 定期檢查 Docker 容器健康狀態
 
+## Point 49: 修復資料更新管理手動執行任務記錄問題
+
+### ✅ 任務完成狀態：**100% 完成**
+
+**執行日期**: 2025-09-12
+
+**問題描述**: 資料更新管理的「開始更新」按鈕點擊後，沒有出現在手動執行裡面
+
+#### 問題診斷與解決
+
+**1. 問題根因** ✅
+- 前端 `createStockCrawlTask` 函數期望 API 回應包含 `success` 欄位
+- 後端 `/tasks/manual/stock-crawl` API 沒有返回 `success` 欄位
+- 前端因為找不到 `success: true` 而進入錯誤處理分支，不會重新獲取任務列表
+
+**2. 解決方案** ✅
+修改後端 API 回應格式：
+```python
+# 修改前：
+return {
+    "task_id": task_id,
+    "message": f"已創建股票爬蟲任務，將處理 {len(valid_symbols)} 檔股票",
+    # ... 缺少 success 欄位
+}
+
+# 修改後：
+return {
+    "success": True,  # 新增成功標誌
+    "task_id": task_id,
+    "message": f"已創建股票爬蟲任務，將處理 {len(valid_symbols)} 檔股票",
+    "data": {         # 新增 data 物件供前端使用
+        "task_id": task_id,
+        "symbols_count": len(valid_symbols),
+        "status": "created"
+    }
+    # ...
+}
+```
+
+**3. 驗證結果** ✅
+
+**API 測試結果：**
+```bash
+# 創建任務測試
+POST /api/v1/tasks/manual/stock-crawl
+回傳：{
+  "success": true,
+  "task_id": "6458c409-4e6c-436f-a259-dcb0d3bbf9bc",
+  "symbols_count": 1908,
+  "status": "created"
+}
+
+# 手動任務列表測試
+GET /api/v1/tasks/manual
+回傳：{
+  "running_tasks": [{
+    "name": "Broker爬蟲批次更新股票資料 (1908檔)",
+    "status": "running",
+    "progress": {"current": 1, "total": 1908, "percent": 0.1}
+  }]
+}
+```
+
+#### 執行結果總結
+
+**成功修復的功能：**
+1. ✅ 後端 API 正確返回 `success` 欄位
+2. ✅ 前端能正確識別成功回應並重新獲取任務列表
+3. ✅ 手動執行任務正確顯示在任務管理中
+4. ✅ 任務進度和狀態正確更新
+5. ✅ 完整的執行資料被保存（1908 檔股票批次更新）
+
+**技術改進：**
+- 統一 API 回應格式，包含 `success` 標誌
+- 完善前後端資料格式對應
+- 確保任務管理系統完整記錄執行資料
+
+**執行流程確認：**
+1. 用戶點擊「開始更新」→ 呼叫 `handleUpdateAllStocks()`
+2. 前端發送 `POST /tasks/manual/stock-crawl` → 創建爬蟲任務
+3. 後端返回 `success: true` → 前端重新獲取任務列表
+4. 任務正確顯示在「任務管理 > 手動執行任務」中
+5. 實時顯示執行進度和狀態
+
 ## Point 47: 股票 1101 更新問題修復與前端頁面重新命名
 
 ### ✅ 任務完成狀態：**100% 完成**

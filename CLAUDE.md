@@ -811,6 +811,27 @@ curl -X OPTIONS "http://localhost:9127/api/v1/stocks/2330"
 - 前端路由命名更具描述性（data → market-data）
 - 保持代碼一致性與可維護性
 
+## Point 44: CORS 問題修復（最終確認）
+
+### ✅ 任務完成狀態：**100% 完成**
+
+**執行日期**: 2025-09-12
+
+**最終驗證與修復**：
+- 後端容器重啟後成功連接資料庫
+- CORS headers 正確配置並驗證通過
+- 所有 API 端點均可從 localhost:3000 正常訪問
+
+**驗證結果**：
+```bash
+# OPTIONS 請求測試
+access-control-allow-origin: *
+access-control-allow-credentials: true
+
+# API 功能測試
+GET /api/v1/sync/stocks/count → {"total":1908,"by_market":{"TSE":1053,"TPEx":855}}
+```
+
 ## Point 48: 移除智能跳過機制判斷
 
 ### ✅ 任務完成狀態：**100% 完成**

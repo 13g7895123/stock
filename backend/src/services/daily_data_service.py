@@ -391,21 +391,7 @@ class DailyDataService:
         try:
             logger.info(f"Starting daily data fetch for stock {stock_id}")
             
-            # 0. Smart skip: Check if data is up to date (unless force update)
-            if not force_update and self.is_stock_data_up_to_date(stock_id):
-                latest_date = self.get_latest_date_from_database(stock_id)
-                result = {
-                    "status": "skipped",
-                    "stock_code": stock_id,
-                    "records_processed": 0,
-                    "created": 0,
-                    "updated": 0,
-                    "latest_date": latest_date.isoformat() if latest_date else None,
-                    "reason": "Stock data is already up to date",
-                    "timestamp": datetime.now().isoformat()
-                }
-                logger.info(f"Skipped processing for {stock_id} - data already up to date")
-                return result
+            # Smart skip mechanism removed - always fetch and update data
             
             # 1. Fetch data from brokers
             daily_data = await self.fetch_daily_data_from_all_brokers(stock_id)

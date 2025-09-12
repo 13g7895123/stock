@@ -87,3 +87,4 @@
     - add commit push
     - 前端專案中有個頁面是data，請幫我改名，並把所有有用到的地方一併修正
     - add commit push
+48. 幫我移除那個智能跳過機制判斷

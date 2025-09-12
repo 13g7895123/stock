@@ -897,6 +897,12 @@ POST /api/v1/stocks/update-all -d '["2330", "2317"]'
 - 保持向後相容性（支援所有呼叫方式）
 - 確保 Redis 和 Celery 服務正常運作
 
+**第二個 API 問題修復：**
+- 問題：`/api/v1/data/history/stocks-with-data?limit=9999` 返回 422 錯誤
+- 原因：API 的 limit 參數上限為 1000，前端傳送 9999 超過限制
+- 解決：修改前端 `frontend/pages/market-data/historical.vue` 的 limit 從 9999 改為 1000
+- 驗證：API 現在正常回傳 200 OK，CORS headers 正確設定
+
 ## Point 48: 移除智能跳過機制判斷
 
 ### ✅ 任務完成狀態：**100% 完成**

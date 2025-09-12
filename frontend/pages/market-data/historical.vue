@@ -595,7 +595,7 @@ const exportData = () => {
 const handleRefreshStocksList = async (showMessage = true) => {
   stocksListLoading.value = true
   // 移除分頁參數，一次性載入所有資料
-  const params = { limit: 9999 } // 設置一個大的限制來獲取所有資料
+  const params = { limit: 1000 } // API 最大限制為 1000 筆
   const result = await getStocksWithData(params)
   
   if (result) {

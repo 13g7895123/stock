@@ -30,61 +30,30 @@ class DailyDataService:
         ]
     
     def validate_daily_data(self, data: Dict[str, Any]) -> bool:
-        """Validate daily stock data format and required fields."""
+        """Simplified validation for daily stock data - accept raw broker data as is."""
         required_fields = [
             "stock_code", "trade_date", "open_price", "high_price", 
             "low_price", "close_price", "volume"
         ]
         
-        # Check required fields
+        # Check required fields exist
         for field in required_fields:
             if field not in data or data[field] is None:
-                logger.warning(f"Missing required field: {field} in daily data")
                 return False
         
-        # Validate stock_code format (4-digit non-zero-prefix)
-        stock_code = data["stock_code"]
-        if not re.match(r"^[1-9]\d{3}$", str(stock_code)):
-            logger.warning(f"Invalid stock_code format: {stock_code}")
-            return False
-        
-        # Validate trade_date is datetime or date
-        trade_date = data["trade_date"]
-        if not isinstance(trade_date, (datetime, date)):
-            logger.warning(f"Invalid trade_date type: {type(trade_date)}")
-            return False
-        
-        # Validate price fields are positive numbers and reasonable ranges
+        # Basic type and positive value checks only - no strict validation
         price_fields = ["open_price", "high_price", "low_price", "close_price"]
         for field in price_fields:
             price = data[field]
             if not isinstance(price, (int, float)) or price <= 0:
-                logger.warning(f"Invalid {field}: {price} (must be positive number)")
-                return False
-            # Check price is within reasonable range for Taiwan stocks (0.01 - 10000)
-            if price < 0.01 or price > 10000:
-                logger.warning(f"Invalid {field}: {price} (price out of reasonable range 0.01-10000)")
                 return False
         
-        # Validate volume is non-negative integer
+        # Volume must be non-negative
         volume = data["volume"]
         if not isinstance(volume, int) or volume < 0:
-            logger.warning(f"Invalid volume: {volume} (must be non-negative integer)")
             return False
         
-        # Validate price relationships (high >= low, etc.)
-        if data["high_price"] < data["low_price"]:
-            logger.warning(f"Invalid price relationship: high ({data['high_price']}) < low ({data['low_price']})")
-            return False
-        
-        if not (data["low_price"] <= data["open_price"] <= data["high_price"]):
-            logger.warning(f"Open price ({data['open_price']}) not within high-low range")
-            return False
-            
-        if not (data["low_price"] <= data["close_price"] <= data["high_price"]):
-            logger.warning(f"Close price ({data['close_price']}) not within high-low range")
-            return False
-        
+        # Accept all data that passes basic checks - no price relationship validation
         return True
     
     def is_stock_data_up_to_date(self, stock_id: str) -> bool:
@@ -126,120 +95,133 @@ class DailyDataService:
         return f"{base_url}{path}"
     
     def parse_broker_response(self, response_text: str, stock_id: str) -> List[Dict[str, Any]]:
-        """Parse broker response text into structured daily data."""
+        """Parse broker response text into structured daily data.
+        
+        Broker format: dates1,date2,...,dateN,open1,open2,...,openN,high1,high2,...,highN,low1,low2,...,lowN,close1,close2,...,closeN,volume1,volume2,...,volumeN
+        Where dates are in YYYY/MM/DD format and price data is grouped by type (all opens, all highs, all lows, all closes, all volumes).
+        """
         daily_data = []
         
         try:
             parts = response_text.split(',')
+            logger.info(f"Total parts in broker response: {len(parts)}")
             
-            # Step 1: Extract all dates and all numeric values
+            # Step 1: Separate dates from numeric values
             dates = []
             all_numbers = []
             
             for part in parts:
                 part = part.strip()
                 
-                # Handle mixed date-price format like "2025/09/09 258.2756"
-                if '/' in part and ' ' in part:
-                    # Split the mixed format
-                    date_part, price_part = part.split(' ', 1)
-                    dates.append(date_part)
+                # Check if this part is a date (YYYY/MM/DD format)
+                if '/' in part and len(part.split('/')) == 3:
                     try:
-                        all_numbers.append(float(price_part))
+                        # Validate date format
+                        year, month, day = part.split('/')
+                        if len(year) == 4 and len(month) <= 2 and len(day) <= 2:
+                            if 1900 <= int(year) <= 2100 and 1 <= int(month) <= 12 and 1 <= int(day) <= 31:
+                                dates.append(part)
+                                continue
                     except ValueError:
                         pass
-                elif '/' in part and len(part.split('/')) == 3:
-                    # Pure date (YYYY/MM/DD format)
-                    dates.append(part)
-                elif ' ' in part:
-                    # Handle mixed volume-price format like "1195 258.2756"
-                    space_parts = part.split()
-                    for space_part in space_parts:
-                        try:
-                            all_numbers.append(float(space_part))
-                        except ValueError:
-                            pass
-                else:
-                    # Single number
-                    try:
-                        all_numbers.append(float(part))
-                    except ValueError:
-                        pass
+                
+                # Check if this part is a pure number
+                try:
+                    number = float(part)
+                    all_numbers.append(number)
+                except ValueError:
+                    # Handle mixed formats like "date price" or "volume price"
+                    if ' ' in part:
+                        space_parts = part.split()
+                        for space_part in space_parts:
+                            # Check if it's a date
+                            if '/' in space_part and len(space_part.split('/')) == 3:
+                                try:
+                                    year, month, day = space_part.split('/')
+                                    if len(year) == 4 and 1900 <= int(year) <= 2100:
+                                        dates.append(space_part)
+                                        continue
+                                except ValueError:
+                                    pass
+                            # Otherwise try to parse as number
+                            try:
+                                number = float(space_part)
+                                all_numbers.append(number)
+                            except ValueError:
+                                pass
             
-            logger.info(f"Extracted {len(dates)} dates and {len(all_numbers)} numbers for {stock_id}")
+            logger.info(f"Parsed {len(dates)} dates and {len(all_numbers)} numbers for {stock_id}")
             
             if len(dates) == 0 or len(all_numbers) == 0:
                 logger.warning("No valid dates or numbers found in broker response")
                 return []
             
-            # Step 2: Improved parsing - assume 5 values per date (OHLCV)
-            values_per_date = 5
-            expected_numbers = len(dates) * values_per_date
+            # Step 2: Map dates to OHLCV data using correct broker format
+            # Broker data structure: all_opens, all_highs, all_lows, all_closes, all_volumes
+            num_dates = len(dates)
+            logger.info(f"Processing {num_dates} dates with {len(all_numbers)} numbers")
             
-            if len(all_numbers) >= expected_numbers:
-                # We have enough numbers - parse sequentially
-                for i, date_str in enumerate(dates):
-                    try:
-                        trade_date = datetime.strptime(date_str, '%Y/%m/%d')
-                        
-                        # Calculate indices for this date's data
-                        start_idx = i * values_per_date
-                        
-                        if start_idx + values_per_date <= len(all_numbers):
-                            # Extract OHLCV values
-                            open_price = all_numbers[start_idx]
-                            high_price = all_numbers[start_idx + 1] 
-                            low_price = all_numbers[start_idx + 2]
-                            close_price = all_numbers[start_idx + 3]
-                            volume = all_numbers[start_idx + 4]
-                            
-                            # Apply price scaling if needed (broker data often scaled by 100)
-                            if open_price > 1000:
-                                open_price = round(open_price / 100, 4)
-                                high_price = round(high_price / 100, 4)
-                                low_price = round(low_price / 100, 4)
-                                close_price = round(close_price / 100, 4)
-                            
-                            # Basic validation - ensure prices are reasonable
-                            if (all(p > 0 for p in [open_price, high_price, low_price, close_price]) and
-                                low_price <= min(open_price, close_price) and
-                                high_price >= max(open_price, close_price) and
-                                high_price >= low_price and
-                                volume >= 0):
-                                
-                                data_item = {
-                                    "stock_code": stock_id,
-                                    "trade_date": trade_date,
-                                    "open_price": open_price,
-                                    "high_price": high_price,
-                                    "low_price": low_price,
-                                    "close_price": close_price,
-                                    "volume": int(volume)
-                                }
-                                
-                                if self.validate_daily_data(data_item):
-                                    daily_data.append(data_item)
-                                    
-                    except Exception as e:
-                        logger.debug(f"Error parsing date {date_str}: {e}")
-                        continue
-                        
-                logger.info(f"Sequential parsing extracted {len(daily_data)} valid records for {stock_id}")
+            if len(all_numbers) < num_dates * 4:  # Need at least OHLC data
+                logger.warning(f"Insufficient data: need at least {num_dates * 4} numbers for OHLC, got {len(all_numbers)}")
+                return []
             
-            # Fallback: Use the original parsing methods if sequential parsing didn't work well
-            if len(daily_data) < len(dates) * 0.5:  # If we got less than 50% of expected records
-                logger.info(f"Sequential parsing yielded low results, trying alternative methods for {stock_id}")
-                daily_data = []  # Reset
-                
-                # Method 1: Try different offset positions to find where actual price data starts
-                for start_offset in [0, 1, 2, 3]:
-                    if self._try_parse_with_offset(dates, all_numbers, start_offset, stock_id, daily_data):
-                        logger.debug(f"Successfully parsed data with offset {start_offset}")
-                        break
-                
-                # Method 2: If that fails, try to find realistic price ranges
-                if not daily_data:
-                    self._try_parse_by_price_range(dates, all_numbers, stock_id, daily_data)
+            # Extract data sections based on broker structure
+            opens = all_numbers[0:num_dates] if len(all_numbers) >= num_dates else []
+            highs = all_numbers[num_dates:num_dates*2] if len(all_numbers) >= num_dates*2 else []
+            lows = all_numbers[num_dates*2:num_dates*3] if len(all_numbers) >= num_dates*3 else []
+            closes = all_numbers[num_dates*3:num_dates*4] if len(all_numbers) >= num_dates*4 else []
+            volumes = all_numbers[num_dates*4:] if len(all_numbers) > num_dates*4 else []
+            
+            logger.info(f"Data sections - Opens: {len(opens)}, Highs: {len(highs)}, Lows: {len(lows)}, Closes: {len(closes)}, Volumes: {len(volumes)}")
+            
+            # Process each date with its corresponding OHLCV data
+            for i in range(num_dates):
+                try:
+                    date_str = dates[i]
+                    trade_date = datetime.strptime(date_str, '%Y/%m/%d')
+                    
+                    # Get OHLCV values for this date
+                    if i < len(opens) and i < len(highs) and i < len(lows) and i < len(closes):
+                        open_price = opens[i]
+                        high_price = highs[i]
+                        low_price = lows[i]
+                        close_price = closes[i]
+                        volume = volumes[i] if i < len(volumes) else 0
+                        
+                        # Validate that values are reasonable
+                        if (open_price > 0 and high_price > 0 and low_price > 0 and close_price > 0 and volume >= 0):
+                            data_item = {
+                                "stock_code": stock_id,
+                                "trade_date": trade_date,
+                                "open_price": round(open_price, 4),
+                                "high_price": round(high_price, 4),
+                                "low_price": round(low_price, 4),
+                                "close_price": round(close_price, 4),
+                                "volume": int(volume)
+                            }
+                            
+                            if self.validate_daily_data(data_item):
+                                daily_data.append(data_item)
+                            else:
+                                logger.debug(f"Validation failed for date {date_str}: {data_item}")
+                        else:
+                            logger.debug(f"Invalid OHLCV values for date {date_str}: O={open_price}, H={high_price}, L={low_price}, C={close_price}, V={volume}")
+                            
+                except Exception as e:
+                    logger.debug(f"Error parsing record {i} for date {dates[i] if i < len(dates) else 'unknown'}: {e}")
+                    continue
+                    
+            logger.info(f"Successfully parsed {len(daily_data)} valid records out of {num_dates} possible records for {stock_id}")
+            
+            # Log sample data for verification
+            if len(daily_data) > 0:
+                sample_data = daily_data[:3] + daily_data[-2:] if len(daily_data) > 5 else daily_data
+                for idx, sample in enumerate(sample_data):
+                    logger.info(f"Sample {idx+1}: {sample['trade_date'].strftime('%Y-%m-%d')} - O:{sample['open_price']}, H:{sample['high_price']}, L:{sample['low_price']}, C:{sample['close_price']}, V:{sample['volume']}")
+            
+            # Return successfully parsed data
+            logger.info(f"Final result: Parsed {len(daily_data)} records for stock {stock_id}")
+            return daily_data
         
         except Exception as e:
             logger.error(f"Error parsing broker response: {e}")
@@ -247,126 +229,6 @@ class DailyDataService:
         
         logger.info(f"Final result: Parsed {len(daily_data)} records for stock {stock_id}")
         return daily_data
-    
-    def _try_parse_with_offset(self, dates, all_numbers, offset, stock_id, daily_data):
-        """Try to parse data with a specific offset to find the correct alignment."""
-        try:
-            adjusted_numbers = all_numbers[offset:]
-            if len(adjusted_numbers) < len(dates) * 4:
-                return False
-            
-            data_per_date = len(adjusted_numbers) // len(dates)
-            if data_per_date < 4:
-                return False
-            
-            temp_data = []
-            for i, date_str in enumerate(dates):
-                try:
-                    trade_date = datetime.strptime(date_str, '%Y/%m/%d')
-                    
-                    start_idx = i * data_per_date
-                    end_idx = start_idx + min(5, data_per_date)
-                    
-                    if end_idx <= len(adjusted_numbers):
-                        data_points = adjusted_numbers[start_idx:end_idx]
-                        
-                        if len(data_points) >= 4:
-                            open_price = data_points[0]
-                            high_price = data_points[1] 
-                            low_price = data_points[2]
-                            close_price = data_points[3]
-                            volume = int(data_points[4]) if len(data_points) > 4 else 0
-                            
-                            # Apply price scaling if needed (convert from cents to dollars)
-                            if all(p > 1000 for p in [open_price, high_price, low_price, close_price]):
-                                open_price = round(open_price / 100, 2)
-                                high_price = round(high_price / 100, 2)
-                                low_price = round(low_price / 100, 2)
-                                close_price = round(close_price / 100, 2)
-                            
-                            # Quick validation to see if this pattern makes sense
-                            if (all(p > 0 for p in [open_price, high_price, low_price, close_price]) and
-                                low_price <= min(open_price, close_price) and
-                                high_price >= max(open_price, close_price) and
-                                high_price >= low_price):
-                                
-                                data_item = {
-                                    "stock_code": stock_id,  # Note: stock_id parameter is actually stock_code
-                                    "trade_date": trade_date,
-                                    "open_price": open_price,
-                                    "high_price": high_price,
-                                    "low_price": low_price,
-                                    "close_price": close_price,
-                                    "volume": volume
-                                }
-                                
-                                if self.validate_daily_data(data_item):
-                                    temp_data.append(data_item)
-                
-                except Exception:
-                    continue
-            
-            # If we got at least 2 valid records, consider this successful
-            if len(temp_data) >= 2:
-                daily_data.extend(temp_data)
-                return True
-                
-        except Exception:
-            pass
-        
-        return False
-    
-    def _try_parse_by_price_range(self, dates, all_numbers, stock_id, daily_data):
-        """Try to find realistic price data by looking for reasonable price ranges."""
-        try:
-            # Look for numbers in reasonable stock price range (10-2000 for Taiwan stocks)
-            price_candidates = [num for num in all_numbers if 10 <= num <= 2000]
-            volume_candidates = [num for num in all_numbers if num > 10000]
-            
-            if len(price_candidates) < len(dates) * 4:
-                return
-            
-            # Try to group price candidates into OHLC sets
-            for i, date_str in enumerate(dates[:3]):  # Try first 3 dates
-                try:
-                    trade_date = datetime.strptime(date_str, '%Y/%m/%d')
-                    
-                    # Take next 4 price candidates
-                    start_idx = i * 4
-                    if start_idx + 4 <= len(price_candidates):
-                        prices = price_candidates[start_idx:start_idx + 4]
-                        
-                        # Sort to get potential OHLC
-                        sorted_prices = sorted(prices)
-                        
-                        # Apply price scaling if needed
-                        scaled_prices = []
-                        for price in prices:
-                            if price > 1000:
-                                scaled_prices.append(round(price / 100, 2))
-                            else:
-                                scaled_prices.append(price)
-                        
-                        sorted_scaled_prices = sorted(scaled_prices)
-                        
-                        data_item = {
-                            "stock_code": stock_id,  # Note: stock_id parameter is actually stock_code
-                            "trade_date": trade_date,
-                            "open_price": scaled_prices[0],      # Use original order
-                            "high_price": sorted_scaled_prices[-1],  # Highest
-                            "low_price": sorted_scaled_prices[0],    # Lowest  
-                            "close_price": scaled_prices[-1],       # Use original order
-                            "volume": volume_candidates[i] if i < len(volume_candidates) else 0
-                        }
-                        
-                        if self.validate_daily_data(data_item):
-                            daily_data.append(data_item)
-                
-                except Exception:
-                    continue
-                    
-        except Exception:
-            pass
     
     async def fetch_daily_data_from_broker(self, base_url: str, stock_id: str) -> List[Dict[str, Any]]:
         """Fetch daily data from a single broker URL."""

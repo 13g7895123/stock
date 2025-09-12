@@ -8,13 +8,13 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
     public: {
-      apiUrl: process.env.API_URL || 'http://localhost:9121/api/v1'
+      apiUrl: process.env.API_URL || 'http://localhost:9127/api/v1'
     }
   },
   nitro: {
     devProxy: {
       '/api': {
-        target: 'http://localhost:9121',
+        target: 'http://localhost:9127',
         changeOrigin: true
       }
     }

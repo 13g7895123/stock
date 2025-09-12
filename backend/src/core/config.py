@@ -2,7 +2,7 @@
 import os
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import AnyHttpUrl, BaseModel, Field, validator
+from pydantic import AnyHttpUrl, BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings
 from typing import Any, Dict, List, Optional, Union
 
@@ -74,18 +74,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_MINUTE: int = Field(100, env="RATE_LIMIT_PER_MINUTE")
     RATE_LIMIT_BURST: int = Field(200, env="RATE_LIMIT_BURST")
 
-    # CORS
-    CORS_ORIGINS: List[str] = Field(
-        ["http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:5173", "http://localhost:8080"],
-        env="CORS_ORIGINS"
-    )
-    CORS_ALLOW_CREDENTIALS: bool = Field(True, env="CORS_ALLOW_CREDENTIALS")
-    CORS_ALLOW_METHODS: List[str] = Field(
-        ["GET", "POST", "PUT", "DELETE", "OPTIONS"], env="CORS_ALLOW_METHODS"
-    )
-    CORS_ALLOW_HEADERS: List[str] = Field(["*"], env="CORS_ALLOW_HEADERS")
-
-    # CORS origins validator removed for simplicity
+    # CORS - removed to fix startup issues, hardcoded in main.py
 
     # Logging
     LOG_FORMAT: str = Field("json", env="LOG_FORMAT")
@@ -116,22 +105,8 @@ class Settings(BaseSettings):
     TEST_DATABASE_URL: Optional[str] = Field(None, env="TEST_DATABASE_URL")
     TEST_REDIS_URL: str = Field("redis://localhost:6379/15", env="TEST_REDIS_URL")
 
-    @validator('CORS_ORIGINS', pre=True)
-    def parse_cors_origins(cls, v):
-        """Parse CORS origins from comma-separated string."""
-        if isinstance(v, str):
-            return [origin.strip() for origin in v.split(',') if origin.strip()]
-        return v
-    
-    @validator('CORS_ALLOW_METHODS', pre=True)
-    def parse_cors_methods(cls, v):
-        """Parse CORS methods from comma-separated string."""
-        if isinstance(v, str):
-            return [method.strip() for method in v.split(',') if method.strip()]
-        return v
 
     model_config = {
-        "env_file": ".env",
         "case_sensitive": True
     }
 

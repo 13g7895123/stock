@@ -75,8 +75,8 @@ async def get_stocks_with_data(
     limit: int = Query(
         50, 
         ge=1, 
-        le=1000, 
-        description="每頁資料筆數，最多1000筆",
+        le=10000, 
+        description="每頁資料筆數，最多10000筆",
         example=50
     ),
     sort_by: str = Query(

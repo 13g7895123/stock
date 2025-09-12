@@ -100,8 +100,8 @@ class StockHistoryService:
         if limit < 1:
             raise ValueError("limit must be >= 1")
             
-        if limit > 1000:
-            raise ValueError("limit cannot exceed 1000")
+        if limit > 10000:
+            raise ValueError("limit cannot exceed 10000")
     
     def get_stock_history(
         self, 

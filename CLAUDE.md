@@ -810,3 +810,72 @@ curl -X OPTIONS "http://localhost:9127/api/v1/stocks/2330"
 - 股票資料更新支援智能跳過與強制更新模式
 - 前端路由命名更具描述性（data → market-data）
 - 保持代碼一致性與可維護性
+
+## Point 48: 移除智能跳過機制判斷
+
+### ✅ 任務完成狀態：**100% 完成**
+
+**執行日期**: 2025-09-12
+
+**任務需求**: 移除智能跳過機制判斷，確保每次都會重新爬取和更新資料
+
+#### 問題分析與解決方案
+
+**1. 智能跳過機制原理** ✅
+- **位置**：`backend/src/services/daily_data_service.py` 第395行
+- **邏輯**：檢查最新資料是否在7天內，如果是則跳過更新
+- **影響**：導致已有資料的股票不會重新更新
+
+**2. 修改內容** ✅
+```python
+# 移除前：
+if not force_update and self.is_stock_data_up_to_date(stock_id):
+    # 返回 skipped 狀態
+    
+# 修改後：
+# Smart skip mechanism removed - always fetch and update data
+```
+
+**3. 功能測試** ✅
+
+**測試股票 1101：**
+```bash
+curl -X GET "http://localhost:9127/api/v1/data/daily/1101"
+回傳：{
+  "status": "success",          # 不再是 "skipped"
+  "records_processed": 1440,    # 處理完整資料
+  "records_updated": 1440       # 全部更新
+}
+```
+
+**測試股票 2330：**
+```bash
+curl -X GET "http://localhost:9127/api/v1/data/daily/2330"  
+回傳：{
+  "status": "success",
+  "records_processed": 1440,
+  "records_updated": 1440
+}
+```
+
+#### 執行結果總結
+
+**✅ 任務完成狀態：100% 完成**
+
+**成功實現的改進：**
+1. ✅ 完全移除智能跳過邏輯
+2. ✅ 每次調用都會重新爬取資料
+3. ✅ 所有股票都會得到最新的完整資料
+4. ✅ API回傳狀態統一為 "success"
+5. ✅ 功能測試通過驗證
+
+**技術改進重點：**
+- 移除條件判斷：`if not force_update and self.is_stock_data_up_to_date(stock_id)`
+- 簡化處理流程：直接進入資料爬取階段
+- 確保資料一致性：每次都獲取最新完整資料
+- 提升用戶體驗：不會出現意外的跳過情況
+
+**後續影響：**
+- 每次更新都會重新爬取完整資料
+- 處理時間可能稍微增加，但確保資料最新
+- 不再需要使用 `force_update=true` 參數

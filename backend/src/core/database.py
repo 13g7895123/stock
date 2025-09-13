@@ -14,6 +14,10 @@ engine = create_engine(
     pool_pre_ping=True,
     pool_recycle=300,
     echo=settings.DEBUG,
+    connect_args={
+        "client_encoding": "utf8",
+        "connect_timeout": 10
+    }
 )
 
 # Create session factory

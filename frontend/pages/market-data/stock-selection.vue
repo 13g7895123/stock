@@ -1,13 +1,12 @@
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+  <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
     <div class="container mx-auto px-4 py-8">
-      <!-- 標題區域 with Gradient Background -->
-      <div class="mb-8 relative">
-        <div class="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-3xl blur-3xl opacity-20"></div>
-        <div class="relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-gray-200 dark:border-gray-700">
+      <!-- 標題區域 -->
+      <div class="mb-8">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-xl border border-gray-200 dark:border-gray-700">
           <div class="flex items-start justify-between">
             <div>
-              <h1 class="text-4xl font-bold mb-3 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              <h1 class="text-4xl font-bold mb-3 text-gray-900 dark:text-white">
                 智能選股中心
               </h1>
               <p class="text-gray-600 dark:text-gray-400 text-lg">
@@ -15,7 +14,7 @@
               </p>
             </div>
             <div class="flex items-center gap-3">
-              <div class="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full text-white text-sm font-semibold shadow-lg">
+              <div class="px-4 py-2 bg-green-500 rounded-full text-white text-sm font-semibold shadow-lg">
                 <Icon name="mdi:lightning-bolt" class="mr-1" />
                 即時分析
               </div>
@@ -31,7 +30,7 @@
             <div class="flex items-center gap-6">
               <!-- 日期選擇器 -->
               <div class="flex items-center gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl px-4 py-3">
-                <div class="p-2 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg">
+                <div class="p-2 bg-blue-500 rounded-lg">
                   <Icon name="mdi:calendar" class="text-xl text-white" />
                 </div>
                 <div>
@@ -48,7 +47,7 @@
 
               <!-- 最新交易日顯示 -->
               <div class="flex items-center gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl px-4 py-3">
-                <div class="p-2 bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg">
+                <div class="p-2 bg-purple-500 rounded-lg">
                   <Icon name="mdi:trending-up" class="text-xl text-white" />
                 </div>
                 <div>
@@ -63,14 +62,11 @@
             <!-- 重新整理按鈕 -->
             <button
               @click="refreshResults"
-              class="group relative px-6 py-3 font-semibold text-white rounded-xl overflow-hidden transition-all duration-300 hover:scale-105"
+              class="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-xl transition-all duration-300 hover:scale-105 disabled:opacity-50"
               :disabled="loading"
             >
-              <div class="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 group-hover:from-blue-600 group-hover:to-purple-700 transition-all duration-300"></div>
-              <div class="relative flex items-center gap-2">
-                <Icon name="mdi:refresh" class="text-xl" :class="{ 'animate-spin': loading }" />
-                <span>重新整理</span>
-              </div>
+              <Icon name="mdi:refresh" class="text-xl mr-2" :class="{ 'animate-spin': loading }" />
+              <span>重新整理</span>
             </button>
           </div>
         </div>
@@ -102,13 +98,11 @@
         <!-- 統計總覽 with Modern Cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <!-- 完美多頭卡片 -->
-          <div class="group relative overflow-hidden">
-            <div class="absolute inset-0 bg-gradient-to-br from-emerald-400 to-green-600 rounded-2xl transform rotate-1 group-hover:rotate-2 transition-transform duration-300"></div>
-            <div class="relative bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
-              <div class="flex items-start justify-between mb-4">
-                <div class="p-3 bg-gradient-to-br from-emerald-400 to-green-600 rounded-xl shadow-lg">
-                  <Icon name="mdi:rocket-launch" class="text-2xl text-white" />
-                </div>
+          <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 border border-gray-200 dark:border-gray-700">
+            <div class="flex items-start justify-between mb-4">
+              <div class="p-3 bg-green-500 rounded-xl shadow-lg">
+                <Icon name="mdi:rocket-launch" class="text-2xl text-white" />
+              </div>
                 <div class="text-3xl font-bold text-gray-900 dark:text-white">
                   {{ selectionResults.strategies?.perfect_bull?.count || 0 }}
                 </div>
@@ -116,16 +110,13 @@
               <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-1">完美多頭</h3>
               <p class="text-xs text-gray-500 dark:text-gray-400">MA5>MA10>MA20>MA60>MA120>MA240</p>
             </div>
-          </div>
 
           <!-- 短線多頭卡片 -->
-          <div class="group relative overflow-hidden">
-            <div class="absolute inset-0 bg-gradient-to-br from-blue-400 to-cyan-600 rounded-2xl transform rotate-1 group-hover:rotate-2 transition-transform duration-300"></div>
-            <div class="relative bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
-              <div class="flex items-start justify-between mb-4">
-                <div class="p-3 bg-gradient-to-br from-blue-400 to-cyan-600 rounded-xl shadow-lg">
-                  <Icon name="mdi:trending-up" class="text-2xl text-white" />
-                </div>
+          <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 border border-gray-200 dark:border-gray-700">
+            <div class="flex items-start justify-between mb-4">
+              <div class="p-3 bg-blue-500 rounded-xl shadow-lg">
+                <Icon name="mdi:trending-up" class="text-2xl text-white" />
+              </div>
                 <div class="text-3xl font-bold text-gray-900 dark:text-white">
                   {{ selectionResults.strategies?.short_bull?.count || 0 }}
                 </div>
@@ -133,16 +124,13 @@
               <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-1">短線多頭</h3>
               <p class="text-xs text-gray-500 dark:text-gray-400">MA5>MA10>MA20</p>
             </div>
-          </div>
 
           <!-- 空頭趨勢卡片 -->
-          <div class="group relative overflow-hidden">
-            <div class="absolute inset-0 bg-gradient-to-br from-red-400 to-pink-600 rounded-2xl transform rotate-1 group-hover:rotate-2 transition-transform duration-300"></div>
-            <div class="relative bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
-              <div class="flex items-start justify-between mb-4">
-                <div class="p-3 bg-gradient-to-br from-red-400 to-pink-600 rounded-xl shadow-lg">
-                  <Icon name="mdi:trending-down" class="text-2xl text-white" />
-                </div>
+          <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 border border-gray-200 dark:border-gray-700">
+            <div class="flex items-start justify-between mb-4">
+              <div class="p-3 bg-red-500 rounded-xl shadow-lg">
+                <Icon name="mdi:trending-down" class="text-2xl text-white" />
+              </div>
                 <div class="text-3xl font-bold text-gray-900 dark:text-white">
                   {{ selectionResults.strategies?.bear?.count || 0 }}
                 </div>
@@ -150,16 +138,13 @@
               <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-1">空頭趨勢</h3>
               <p class="text-xs text-gray-500 dark:text-gray-400">MA5&lt;MA10&lt;MA20&lt;MA60</p>
             </div>
-          </div>
 
           <!-- 選中比例卡片 -->
-          <div class="group relative overflow-hidden">
-            <div class="absolute inset-0 bg-gradient-to-br from-purple-400 to-indigo-600 rounded-2xl transform rotate-1 group-hover:rotate-2 transition-transform duration-300"></div>
-            <div class="relative bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
-              <div class="flex items-start justify-between mb-4">
-                <div class="p-3 bg-gradient-to-br from-purple-400 to-indigo-600 rounded-xl shadow-lg">
-                  <Icon name="mdi:percent" class="text-2xl text-white" />
-                </div>
+          <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 border border-gray-200 dark:border-gray-700">
+            <div class="flex items-start justify-between mb-4">
+              <div class="p-3 bg-purple-500 rounded-xl shadow-lg">
+                <Icon name="mdi:percent" class="text-2xl text-white" />
+              </div>
                 <div class="text-3xl font-bold text-gray-900 dark:text-white">
                   {{ selectionResults.summary?.selection_rate || 0 }}%
                 </div>
@@ -169,7 +154,6 @@
                 共 {{ selectionResults.summary?.total_stocks_with_ma || 0 }} 檔股票
               </p>
             </div>
-          </div>
         </div>
 
         <!-- Tab 切換 with Modern Design -->
@@ -183,10 +167,9 @@
                 :class="[
                   'flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-300',
                   activeTab === tab.key
-                    ? 'bg-gradient-to-r text-white shadow-lg transform scale-105'
+                    ? 'bg-blue-500 text-white shadow-lg transform scale-105'
                     : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                 ]"
-                :style="activeTab === tab.key ? getTabGradient(tab.key) : ''"
               >
                 <Icon :name="tab.icon" class="text-xl" />
                 <span>{{ tab.label }}</span>
@@ -208,9 +191,9 @@
         <!-- 股票列表 with Modern Table -->
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
           <!-- 策略說明 -->
-          <div v-if="getCurrentStrategy()" class="p-6 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 border-b border-gray-200 dark:border-gray-700">
+          <div v-if="getCurrentStrategy()" class="p-6 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
             <div class="flex items-center gap-3 mb-3">
-              <div class="p-2 rounded-lg" :style="getStrategyIconBg(activeTab)">
+              <div class="p-2 bg-blue-500 rounded-lg">
                 <Icon :name="getStrategyIcon(activeTab)" class="text-xl text-white" />
               </div>
               <h3 class="text-xl font-bold text-gray-900 dark:text-white">
@@ -256,7 +239,7 @@
                   class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-200"
                 >
                   <td class="px-4 py-3">
-                    <div class="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm font-bold">
+                    <div class="flex items-center justify-center w-8 h-8 rounded-full bg-blue-500 text-white text-sm font-bold">
                       {{ index + 1 }}
                     </div>
                   </td>
@@ -317,7 +300,7 @@
                   <td class="px-4 py-3 text-center">
                     <button
                       @click="viewStockDetail(stock.stock_code)"
-                      class="group p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-300 hover:scale-110 shadow-lg"
+                      class="p-2 bg-blue-500 hover:bg-blue-600 rounded-lg transition-all duration-300 hover:scale-110 shadow-lg"
                       title="查看詳情"
                     >
                       <Icon name="mdi:chart-line" class="text-lg text-white" />
@@ -343,13 +326,10 @@
         </div>
       </div>
 
-      <!-- 初始載入提示 with Modern Design -->
+      <!-- 初始載入提示 -->
       <div v-else class="flex flex-col items-center justify-center py-20">
-        <div class="relative mb-8">
-          <div class="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full blur-2xl opacity-30 animate-pulse"></div>
-          <div class="relative bg-white dark:bg-gray-800 p-8 rounded-full shadow-2xl">
-            <Icon name="mdi:database-search" class="text-6xl text-gray-400" />
-          </div>
+        <div class="bg-white dark:bg-gray-800 p-8 rounded-full shadow-2xl mb-8">
+          <Icon name="mdi:database-search" class="text-6xl text-gray-400" />
         </div>
         <h3 class="text-2xl font-bold text-gray-700 dark:text-gray-300 mb-2">選股系統就緒</h3>
         <p class="text-gray-500 dark:text-gray-400">請選擇日期開始智能選股分析</p>
@@ -397,25 +377,6 @@ const maxDate = computed(() => {
   return today.toISOString().split('T')[0]
 })
 
-// 獲取Tab漸變色
-const getTabGradient = (tabKey) => {
-  const gradients = {
-    perfect_bull: 'background: linear-gradient(135deg, #10b981, #059669)',
-    short_bull: 'background: linear-gradient(135deg, #3b82f6, #06b6d4)',
-    bear: 'background: linear-gradient(135deg, #ef4444, #ec4899)'
-  }
-  return gradients[tabKey]
-}
-
-// 獲取策略圖標背景
-const getStrategyIconBg = (tabKey) => {
-  const backgrounds = {
-    perfect_bull: 'background: linear-gradient(135deg, #10b981, #059669)',
-    short_bull: 'background: linear-gradient(135deg, #3b82f6, #06b6d4)',
-    bear: 'background: linear-gradient(135deg, #ef4444, #ec4899)'
-  }
-  return backgrounds[tabKey]
-}
 
 // 獲取策略圖標
 const getStrategyIcon = (tabKey) => {
@@ -569,19 +530,7 @@ tbody tr {
   transition: all 0.3s ease;
 }
 
-tbody tr::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.05), transparent);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  pointer-events: none;
-}
-
-tbody tr:hover::before {
-  opacity: 1;
+tbody tr:hover {
+  background-color: rgba(59, 130, 246, 0.05);
 }
 </style>

@@ -249,6 +249,154 @@
         <p class="text-gray-600 dark:text-gray-400">當您開始執行任務時，記錄會顯示在這裡</p>
       </div>
     </div>
+
+    <!-- 任務詳情模態框 -->
+    <div v-if="selectedTask" class="fixed inset-0 bg-gray-600 bg-opacity-50 z-50 overflow-y-auto flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <!-- 模態框標題 -->
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">任務執行詳情</h3>
+          <button 
+            @click="closeTaskDetails"
+            class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          >
+            <XMarkIcon class="w-6 h-6" />
+          </button>
+        </div>
+
+        <!-- 模態框內容 -->
+        <div class="px-6 py-4 space-y-6">
+          <!-- 基本資訊 -->
+          <div>
+            <h4 class="text-md font-semibold text-gray-900 dark:text-white mb-3">基本資訊</h4>
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span class="text-gray-500 dark:text-gray-400">任務名稱:</span>
+                  <span class="ml-2 font-medium">{{ selectedTask.name }}</span>
+                </div>
+                <div>
+                  <span class="text-gray-500 dark:text-gray-400">任務類型:</span>
+                  <span class="ml-2 font-medium">{{ selectedTask.type }}</span>
+                </div>
+                <div>
+                  <span class="text-gray-500 dark:text-gray-400">執行狀態:</span>
+                  <span 
+                    class="ml-2 inline-flex px-2 py-1 text-xs font-medium rounded-full"
+                    :class="{
+                      'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200': selectedTask.status === 'completed',
+                      'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200': selectedTask.status === 'running',
+                      'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200': selectedTask.status === 'failed',
+                      'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200': selectedTask.status === 'cancelled'
+                    }"
+                  >
+                    {{ getStatusText(selectedTask.status) }}
+                  </span>
+                </div>
+                <div>
+                  <span class="text-gray-500 dark:text-gray-400">任務ID:</span>
+                  <span class="ml-2 font-mono text-sm">{{ selectedTask.id }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 執行時間資訊 -->
+          <div>
+            <h4 class="text-md font-semibold text-gray-900 dark:text-white mb-3">執行時間</h4>
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <span class="text-gray-500 dark:text-gray-400">開始時間:</span>
+                  <span class="ml-2 font-medium">{{ formatDateTime(selectedTask.startTime) }}</span>
+                </div>
+                <div>
+                  <span class="text-gray-500 dark:text-gray-400">結束時間:</span>
+                  <span class="ml-2 font-medium">{{ selectedTask.endTime ? formatDateTime(selectedTask.endTime) : '執行中' }}</span>
+                </div>
+                <div>
+                  <span class="text-gray-500 dark:text-gray-400">執行時長:</span>
+                  <span class="ml-2 font-medium">{{ formatDuration(selectedTask.duration) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 執行進度 -->
+          <div>
+            <h4 class="text-md font-semibold text-gray-900 dark:text-white mb-3">執行進度</h4>
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+              <div class="space-y-3">
+                <div class="flex items-center justify-between text-sm">
+                  <span class="text-gray-600 dark:text-gray-400">總進度</span>
+                  <span class="font-medium">{{ selectedTask.processedCount }}/{{ selectedTask.totalCount }} ({{ selectedTask.progress }}%)</span>
+                </div>
+                <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3">
+                  <div 
+                    class="bg-blue-500 h-3 rounded-full transition-all duration-300"
+                    :style="{ width: selectedTask.progress + '%' }"
+                  ></div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mt-4">
+                  <div>
+                    <span class="text-gray-500 dark:text-gray-400">處理總數:</span>
+                    <span class="ml-2 font-medium">{{ selectedTask.processedCount }}</span>
+                  </div>
+                  <div>
+                    <span class="text-gray-500 dark:text-gray-400">成功數量:</span>
+                    <span class="ml-2 font-medium text-green-600">{{ selectedTask.successCount }}</span>
+                  </div>
+                  <div>
+                    <span class="text-gray-500 dark:text-gray-400">錯誤數量:</span>
+                    <span class="ml-2 font-medium text-red-600">{{ selectedTask.errorCount }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 執行結果 -->
+          <div v-if="selectedTask.resultSummary">
+            <h4 class="text-md font-semibold text-gray-900 dark:text-white mb-3">執行結果</h4>
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+              <p class="text-sm text-gray-700 dark:text-gray-300">{{ selectedTask.resultSummary }}</p>
+            </div>
+          </div>
+
+          <!-- 執行參數 -->
+          <div v-if="selectedTask.parameters">
+            <h4 class="text-md font-semibold text-gray-900 dark:text-white mb-3">執行參數</h4>
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+              <pre class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{{ formatParameters(selectedTask.parameters) }}</pre>
+            </div>
+          </div>
+
+          <!-- 錯誤訊息 -->
+          <div v-if="selectedTask.errorMessage">
+            <h4 class="text-md font-semibold text-gray-900 dark:text-white mb-3">錯誤訊息</h4>
+            <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+              <p class="text-sm text-red-700 dark:text-red-300">{{ selectedTask.errorMessage }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 模態框底部 -->
+        <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end space-x-3">
+          <ActionButton 
+            @click="closeTaskDetails"
+            text="關閉"
+            variant="secondary"
+          />
+          <ActionButton 
+            v-if="selectedTask.status === 'failed'"
+            @click="retryTask(selectedTask.id)"
+            :icon="ArrowPathIcon"
+            text="重新執行"
+            variant="primary"
+          />
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -301,6 +449,7 @@ const taskStatistics = ref({
 const statusFilter = ref('')
 const typeFilter = ref('')
 const pollCleanup = ref(null)
+const selectedTask = ref(null)
 
 // 計算任務統計
 const taskStats = computed(() => [
@@ -375,8 +524,11 @@ const formatDuration = (seconds) => {
 const getTaskStatistics = async () => {
   try {
     const result = await get('/task-execution/statistics')
-    if (result.success) {
-      taskStatistics.value = result.data.statistics
+    if (result.success && result.statistics) {
+      taskStatistics.value = result.statistics
+      console.log('✅ 任務統計資料更新完成:', taskStatistics.value)
+    } else {
+      console.error('❌ 獲取任務統計失敗:', result)
     }
   } catch (error) {
     console.error('獲取任務統計失敗:', error)
@@ -402,8 +554,25 @@ const handleCancelTask = async (taskId) => {
 const viewTaskDetails = async (taskId) => {
   const details = await getTaskDetails(taskId)
   if (details) {
-    console.log('任務詳情:', details)
-    // 實際應用中會打開詳情對話框
+    selectedTask.value = details
+  }
+}
+
+const closeTaskDetails = () => {
+  selectedTask.value = null
+}
+
+const formatDateTime = (dateString) => {
+  if (!dateString) return '-'
+  return new Date(dateString).toLocaleString('zh-TW')
+}
+
+const formatParameters = (parameters) => {
+  if (!parameters) return ''
+  try {
+    return JSON.stringify(JSON.parse(parameters), null, 2)
+  } catch {
+    return parameters
   }
 }
 

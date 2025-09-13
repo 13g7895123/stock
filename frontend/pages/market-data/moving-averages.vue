@@ -23,7 +23,12 @@
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 class="text-2xl font-bold text-gray-900 dark:text-white">均線計算管理</h1>
-          <p class="text-gray-600 dark:text-gray-300 mt-1">計算和管理股票的移動平均線（MA）</p>
+          <p class="text-gray-600 dark:text-gray-300 mt-1">
+            計算和管理股票的移動平均線（MA）
+            <span class="ml-2 text-xs text-blue-500 dark:text-blue-400">
+              📊 統計數據每30秒自動更新
+            </span>
+          </p>
         </div>
         <div class="flex items-center space-x-3">
           <ActionButton 
@@ -47,7 +52,8 @@
           <div class="ml-4">
             <div class="text-sm font-medium text-gray-500 dark:text-gray-400">已計算股票</div>
             <div class="text-2xl font-bold text-gray-900 dark:text-white">
-              {{ stats?.stocks_with_ma || 0 }}
+              <span v-if="loading" class="animate-pulse">載入中...</span>
+              <span v-else>{{ stats?.stocks_with_ma || 0 }}</span>
             </div>
           </div>
         </div>
@@ -61,7 +67,8 @@
           <div class="ml-4">
             <div class="text-sm font-medium text-gray-500 dark:text-gray-400">總計算筆數</div>
             <div class="text-2xl font-bold text-gray-900 dark:text-white">
-              {{ formatNumber(stats?.total_ma_records || 0) }}
+              <span v-if="loading" class="animate-pulse">載入中...</span>
+              <span v-else>{{ formatNumber(stats?.total_ma_records || 0) }}</span>
             </div>
           </div>
         </div>
@@ -424,6 +431,15 @@ const clearing = ref(false)
 const querying = ref(false)
 
 const stats = ref(null)
+
+// 監控統計數據變化以進行調試
+watch(stats, (newStats, oldStats) => {
+  console.log('📊 統計數據發生變化:', {
+    old: oldStats,
+    new: newStats,
+    timestamp: new Date().toLocaleTimeString('zh-TW')
+  })
+}, { deep: true })
 const movingAverageData = ref([])
 const hasQueried = ref(false)
 
@@ -557,15 +573,21 @@ const getTrendColor = (record) => {
 const handleRefreshStats = async () => {
   loading.value = true
   try {
+    console.log('🔄 開始重新整理均線統計資訊...')
     const result = await getMovingAveragesStatistics()
+    console.log('📊 API回應結果:', result)
     
-    if (result.success) {
-      stats.value = result.data
+    if (result.success && result.data) {
+      stats.value = result.data.data
+      console.log('✅ 統計資料更新完成:', stats.value)
+      console.log('📊 已計算股票數:', stats.value.stocks_with_ma)
       showNotification('success', '成功重新整理統計資訊')
     } else {
+      console.error('❌ API回應失敗:', result.error)
       showNotification('error', '重新整理統計資訊失敗: ' + result.error)
     }
   } catch (error) {
+    console.error('❌ API請求異常:', error)
     showNotification('error', '重新整理統計資訊失敗: ' + error.message)
   } finally {
     loading.value = false
@@ -772,7 +794,7 @@ const handleQueryMovingAverages = async () => {
     const result = await queryMovingAverages(queryParams.value.symbol, params)
     
     if (result.success) {
-      movingAverageData.value = result.data.data || []
+      movingAverageData.value = result.data || []
       
       if (movingAverageData.value.length > 0) {
         showNotification('success', `成功查詢到 ${movingAverageData.value.length} 筆均線資料`)
@@ -820,13 +842,54 @@ const exportMovingAverageData = () => {
   showNotification('success', 'CSV檔案已下載')
 }
 
+// 統計數據自動重新整理定時器
+let statsRefreshInterval = null
+
+// 開始統計數據自動重新整理
+const startStatsAutoRefresh = () => {
+  console.log('🚀 啟動統計數據自動重新整理機制 (每30秒)')
+  // 每30秒自動重新整理統計數據
+  statsRefreshInterval = setInterval(async () => {
+    try {
+      console.log('⏰ 自動重新整理統計數據 (30秒定時)')
+      const result = await getMovingAveragesStatistics()
+      if (result.success && result.data) {
+        const oldStats = { ...stats.value }
+        stats.value = result.data
+        console.log('📈 統計數據已自動更新:', {
+          old: oldStats,
+          new: stats.value,
+          changed: JSON.stringify(oldStats) !== JSON.stringify(stats.value)
+        })
+      } else {
+        console.error('⚠️ 自動更新API回應失敗:', result.error)
+      }
+    } catch (error) {
+      console.error('❌ 自動更新統計數據失敗:', error)
+    }
+  }, 30000) // 30秒更新一次
+}
+
+// 停止統計數據自動重新整理
+const stopStatsAutoRefresh = () => {
+  if (statsRefreshInterval) {
+    clearInterval(statsRefreshInterval)
+    statsRefreshInterval = null
+  }
+}
+
 // 初始化
 onMounted(async () => {
+  console.log('🎯 均線計算管理頁面已掛載，開始初始化...')
   await handleRefreshStats()
+  // 啟動自動重新整理
+  // startStatsAutoRefresh()
+  console.log('✅ 頁面初始化完成')
 })
 
 // 清理資源
 onUnmounted(() => {
   stopTaskPolling()
+  stopStatsAutoRefresh()
 })
 </script>

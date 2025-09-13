@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from src.core.database import get_db
 from src.services.daily_data_service import DailyDataService
-from src.models.stock import Stock
+from src.models.stock import Stock, TaskExecutionLog
 
 logger = logging.getLogger(__name__)
 
@@ -285,7 +285,27 @@ async def run_stock_crawl_task(task_id: str, symbols: List[str], db: Session):
         logger.error(f"Task {task_id} not found")
         return
     
+    # Create database record for task execution
+    task_log = TaskExecutionLog(
+        task_name=task.name,
+        task_type="stock_crawl",
+        parameters=f'{{"symbols": {len(symbols)}, "task_id": "{task_id}"}}',
+        status="running",
+        start_time=datetime.now(),
+        progress=0,
+        processed_count=0,
+        total_count=len(symbols),
+        success_count=0,
+        error_count=0,
+        result_summary=f"準備爬取 {len(symbols)} 檔股票資料",
+        created_by="system"
+    )
+    
     try:
+        # Add to database
+        db.add(task_log)
+        db.commit()
+        
         # Mark task as running
         task.status = TaskStatus.RUNNING
         task.start_time = datetime.now()
@@ -301,6 +321,12 @@ async def run_stock_crawl_task(task_id: str, symbols: List[str], db: Session):
         for i, symbol in enumerate(symbols):
             if task.status == TaskStatus.CANCELLED:
                 logger.info(f"Task {task_id} was cancelled")
+                # Update database status
+                task_log.status = "cancelled"
+                task_log.end_time = datetime.now()
+                task_log.duration_seconds = (task_log.end_time - task_log.start_time).total_seconds()
+                task_log.error_message = "User cancelled"
+                db.commit()
                 return
                 
             try:
@@ -308,6 +334,11 @@ async def run_stock_crawl_task(task_id: str, symbols: List[str], db: Session):
                 task.progress.current = i
                 task.progress.percent = round((i / len(symbols)) * 100, 1)
                 task.progress.current_step = f"正在處理第 {i+1} / {len(symbols)} 檔股票: {symbol}"
+                
+                # Update database progress
+                task_log.processed_count = i
+                task_log.progress = int(task.progress.percent)
+                task_log.result_summary = task.progress.current_step
                 
                 # Add to recent items
                 if not task.progress.recent_items:
@@ -327,10 +358,16 @@ async def run_stock_crawl_task(task_id: str, symbols: List[str], db: Session):
                 if result.get("status") == "success":
                     successful_updates += 1
                     total_records_processed += result.get("records_processed", 0)
+                    task_log.success_count = successful_updates
                     logger.info(f"Successfully processed {symbol}: {result.get('records_processed', 0)} records")
                 else:
                     failed_updates += 1
+                    task_log.error_count = failed_updates
                     logger.error(f"Failed to process {symbol}: {result.get('error', 'Unknown error')}")
+                
+                # Commit progress updates every 10 stocks or at the end
+                if (i + 1) % 10 == 0 or i == len(symbols) - 1:
+                    db.commit()
                 
                 # Small delay to avoid overwhelming broker servers
                 if i < len(symbols) - 1:
@@ -338,6 +375,7 @@ async def run_stock_crawl_task(task_id: str, symbols: List[str], db: Session):
                     
             except Exception as e:
                 failed_updates += 1
+                task_log.error_count = failed_updates
                 logger.error(f"Error processing {symbol}: {e}")
                 continue
         
@@ -357,6 +395,17 @@ async def run_stock_crawl_task(task_id: str, symbols: List[str], db: Session):
             "execution_time_seconds": (task.end_time - task.start_time).total_seconds()
         }
         
+        # Update database record - completed
+        task_log.status = "completed"
+        task_log.end_time = task.end_time
+        task_log.duration_seconds = (task.end_time - task.start_time).total_seconds()
+        task_log.processed_count = len(symbols)
+        task_log.progress = 100
+        task_log.success_count = successful_updates
+        task_log.error_count = failed_updates
+        task_log.result_summary = f"任務完成：成功 {successful_updates} 檔，失敗 {failed_updates} 檔，處理 {total_records_processed} 筆資料"
+        db.commit()
+        
         logger.info(f"Stock crawl task {task_id} completed: {successful_updates} success, {failed_updates} failed, {total_records_processed} records")
         
     except Exception as e:
@@ -364,6 +413,15 @@ async def run_stock_crawl_task(task_id: str, symbols: List[str], db: Session):
         task.status = TaskStatus.FAILED
         task.end_time = datetime.now()
         task.error_message = str(e)
+        
+        # Update database record - failed
+        task_log.status = "failed"
+        task_log.end_time = task.end_time
+        task_log.duration_seconds = (task.end_time - task.start_time).total_seconds()
+        task_log.error_message = str(e)
+        task_log.result_summary = f"任務失敗：{str(e)}"
+        db.commit()
+        
         logger.error(f"Stock crawl task {task_id} failed: {e}")
         
     finally:

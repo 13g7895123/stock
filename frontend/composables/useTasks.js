@@ -130,7 +130,7 @@ export const useTasks = () => {
       const result = await get(`/task-execution/status/${taskId}`)
       
       if (result.success) {
-        const task = result.data.task
+        const task = result.task
         return {
           id: task.id,
           name: task.task_name,

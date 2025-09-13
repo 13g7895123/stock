@@ -24,9 +24,9 @@ class MovingAveragesCalculateRequest(BaseModel):
         example=["2330", "2317", "2454"]
     )
     periods: List[int] = Field(
-        default=[5, 10, 20, 60, 120, 240],
+        default=[5, 10, 24, 72, 120, 240],
         description="均線週期列表", 
-        example=[5, 10, 20, 60]
+        example=[5, 10, 24, 72]
     )
     force_recalculate: bool = Field(
         default=False,
@@ -41,7 +41,7 @@ class MovingAveragesAsyncRequest(BaseModel):
         description="股票代碼清單，為空則計算所有有資料的股票"
     )
     periods: List[int] = Field(
-        default=[5, 10, 20, 60, 120, 240],
+        default=[5, 10, 24, 72, 120, 240],
         description="均線週期列表"
     )
     force_recalculate: bool = Field(

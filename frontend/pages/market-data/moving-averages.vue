@@ -26,7 +26,7 @@
           <p class="text-gray-600 dark:text-gray-300 mt-1">
             計算和管理股票的移動平均線（MA）
             <span class="ml-2 text-xs text-blue-500 dark:text-blue-400">
-              📊 統計數據每30秒自動更新
+              📊 點擊重新整理更新統計數據
             </span>
           </p>
         </div>
@@ -351,8 +351,8 @@
               <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-sm font-medium text-gray-500 dark:text-gray-300">收盤價</th>
               <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-sm font-medium text-gray-500 dark:text-gray-300">MA5</th>
               <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-sm font-medium text-gray-500 dark:text-gray-300">MA10</th>
-              <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-sm font-medium text-gray-500 dark:text-gray-300">MA20</th>
-              <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-sm font-medium text-gray-500 dark:text-gray-300">MA60</th>
+              <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-sm font-medium text-gray-500 dark:text-gray-300">MA24</th>
+              <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-sm font-medium text-gray-500 dark:text-gray-300">MA72</th>
               <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center text-sm font-medium text-gray-500 dark:text-gray-300">趨勢</th>
             </tr>
           </thead>
@@ -457,8 +457,8 @@ const taskStatus = ref({
 const pollingInterval = ref(null)
 
 // 計算參數
-const availablePeriods = [5, 10, 20, 60, 120, 240]
-const selectedPeriods = ref([5, 10, 20, 60])
+const availablePeriods = [5, 10, 24, 72, 120, 240]
+const selectedPeriods = ref([5, 10, 24, 72])
 const calculationMode = ref('missing')
 const singleStockSymbol = ref('')
 
@@ -820,7 +820,7 @@ const exportMovingAverageData = () => {
   }
 
   const csv = [
-    ['交易日期', '股票代號', '收盤價', 'MA5', 'MA10', 'MA20', 'MA60', '趨勢'],
+    ['交易日期', '股票代號', '收盤價', 'MA5', 'MA10', 'MA24', 'MA72', '趨勢'],
     ...movingAverageData.value.map(record => [
       record.trade_date,
       record.stock_code,
@@ -842,41 +842,8 @@ const exportMovingAverageData = () => {
   showNotification('success', 'CSV檔案已下載')
 }
 
-// 統計數據自動重新整理定時器
-let statsRefreshInterval = null
-
-// 開始統計數據自動重新整理
-const startStatsAutoRefresh = () => {
-  console.log('🚀 啟動統計數據自動重新整理機制 (每30秒)')
-  // 每30秒自動重新整理統計數據
-  statsRefreshInterval = setInterval(async () => {
-    try {
-      console.log('⏰ 自動重新整理統計數據 (30秒定時)')
-      const result = await getMovingAveragesStatistics()
-      if (result.success && result.data) {
-        const oldStats = { ...stats.value }
-        stats.value = result.data
-        console.log('📈 統計數據已自動更新:', {
-          old: oldStats,
-          new: stats.value,
-          changed: JSON.stringify(oldStats) !== JSON.stringify(stats.value)
-        })
-      } else {
-        console.error('⚠️ 自動更新API回應失敗:', result.error)
-      }
-    } catch (error) {
-      console.error('❌ 自動更新統計數據失敗:', error)
-    }
-  }, 30000) // 30秒更新一次
-}
-
-// 停止統計數據自動重新整理
-const stopStatsAutoRefresh = () => {
-  if (statsRefreshInterval) {
-    clearInterval(statsRefreshInterval)
-    statsRefreshInterval = null
-  }
-}
+// 統計數據自動重新整理已移除
+// 用戶可以手動點擊重新整理按鈕來更新統計數據
 
 // 初始化
 onMounted(async () => {
@@ -890,6 +857,6 @@ onMounted(async () => {
 // 清理資源
 onUnmounted(() => {
   stopTaskPolling()
-  stopStatsAutoRefresh()
+  // stopStatsAutoRefresh() - 已移除自動更新功能
 })
 </script>

@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 
-from src.api.endpoints import health, stocks, stock_sync, data, tasks, task_execution, moving_averages
+from src.api.endpoints import health, stocks, stock_sync, data, tasks, task_execution, moving_averages, stock_selection
 from src.core.config import settings
 from src.core.database import create_tables
 
@@ -119,6 +119,12 @@ app.include_router(
     moving_averages.router,
     prefix="/api/v1/moving-averages",
     tags=["Moving Averages"]
+)
+
+app.include_router(
+    stock_selection.router,
+    prefix="/api/v1/stock-selection",
+    tags=["Stock Selection"]
 )
 
 # Global exception handler

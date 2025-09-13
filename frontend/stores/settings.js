@@ -41,6 +41,7 @@ export const useSettingsStore = defineStore('settings', () => {
       name: '選股結果',
       icon: 'StarIcon',
       children: [
+        { name: '均線選股', href: '/market-data/stock-selection' },
         { name: '推薦股票', href: '/screening/recommendations' },
         { name: '篩選條件', href: '/screening/filters' },
         { name: '歷史記錄', href: '/screening/history' }

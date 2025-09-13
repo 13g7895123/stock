@@ -25,10 +25,10 @@ export const useMovingAverages = () => {
   /**
    * 計算均線數據
    * @param {Array} stockCodes - 股票代號清單 
-   * @param {Array} periods - 均線週期 [5, 10, 20, 60, 120, 240]
+   * @param {Array} periods - 均線週期 [5, 10, 24, 72, 120, 240]
    * @param {Boolean} forceRecalculate - 是否強制重新計算
    */
-  const calculateMovingAverages = async (stockCodes, periods = [5, 10, 20, 60, 120, 240], forceRecalculate = false) => {
+  const calculateMovingAverages = async (stockCodes, periods = [5, 10, 24, 72, 120, 240], forceRecalculate = false) => {
     try {
       const requestData = {
         stock_codes: stockCodes,
@@ -108,11 +108,11 @@ export const useMovingAverages = () => {
   /**
    * 啟動非同步均線計算任務
    * @param {Array} stockCodes - 股票代號清單（可選，為空則處理所有股票）
-   * @param {Array} periods - 均線週期 [5, 10, 20, 60, 120, 240]
+   * @param {Array} periods - 均線週期 [5, 10, 24, 72, 120, 240]
    * @param {Boolean} forceRecalculate - 是否強制重新計算
    * @param {Number} batchSize - 批次處理大小
    */
-  const startAsyncCalculation = async (stockCodes = null, periods = [5, 10, 20, 60, 120, 240], forceRecalculate = false, batchSize = 50) => {
+  const startAsyncCalculation = async (stockCodes = null, periods = [5, 10, 24, 72, 120, 240], forceRecalculate = false, batchSize = 50) => {
     try {
       const requestData = {
         stock_codes: stockCodes,
@@ -136,10 +136,10 @@ export const useMovingAverages = () => {
   /**
    * 啟動單一股票非同步均線計算任務
    * @param {String} stockCode - 股票代號
-   * @param {Array} periods - 均線週期 [5, 10, 20, 60, 120, 240]
+   * @param {Array} periods - 均線週期 [5, 10, 24, 72, 120, 240]
    * @param {Boolean} forceRecalculate - 是否強制重新計算
    */
-  const startSingleStockAsyncCalculation = async (stockCode, periods = [5, 10, 20, 60, 120, 240], forceRecalculate = false) => {
+  const startSingleStockAsyncCalculation = async (stockCode, periods = [5, 10, 24, 72, 120, 240], forceRecalculate = false) => {
     try {
       const result = await post(`/moving-averages/calculate-single-async?stock_code=${stockCode}&force_recalculate=${forceRecalculate}`, {
         periods: periods

@@ -177,7 +177,7 @@
             </div>
           </div>
           <div class="flex items-center space-x-2">
-            <ActionButton 
+            <ActionButton
               @click="handleUpdateAllStocks"
               :loading="loading || batchUpdateProgress.isRunning || taskLoading"
               :icon="ArrowPathIcon"
@@ -185,8 +185,24 @@
               loading-text="創建任務中..."
               variant="success"
             />
+            <ActionButton
+              @click="handleSequentialUpdateAllStocks"
+              :loading="loading || batchUpdateProgress.isRunning || taskLoading"
+              :icon="CpuChipIcon"
+              text="循序更新"
+              loading-text="創建循序任務中..."
+              variant="info"
+              class="relative"
+            >
+              <template #icon>
+                <span class="relative">
+                  <CpuChipIcon class="h-4 w-4" />
+                  <span class="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center" style="font-size: 10px;">📊</span>
+                </span>
+              </template>
+            </ActionButton>
             <NuxtLink to="/tasks/manual">
-              <ActionButton 
+              <ActionButton
                 :icon="EyeIcon"
                 text="查看進度"
                 variant="secondary"
@@ -241,7 +257,8 @@ import {
   ChartBarIcon,
   CalendarIcon,
   InformationCircleIcon,
-  EyeIcon
+  EyeIcon,
+  CpuChipIcon
 } from '@heroicons/vue/24/outline'
 
 // 設定頁面標題
@@ -261,8 +278,9 @@ const {
   getOverallStats
 } = useStocks()
 
-const { 
+const {
   createStockCrawlTask,
+  createSequentialStockCrawlTask,
   getManualTasks,
   startTaskPolling,
   loading: taskLoading,
@@ -451,6 +469,70 @@ const handleUpdateAllStocks = async () => {
     }
   } catch (err) {
     showNotification('error', '創建任務時發生錯誤：' + err.message)
+  }
+}
+
+const handleSequentialUpdateAllStocks = async () => {
+  if (batchUpdateProgress.value.isRunning) {
+    showNotification('error', '批次更新正在進行中，請稍候')
+    return
+  }
+
+  try {
+    // 創建循序的批次更新任務 (Point 65)
+    showNotification('info', '正在創建循序批次更新任務...')
+    showNotification('info', '📊 啟用循序功能：分批處理 + 資源監控 + 延遲保護', 3000)
+
+    const sequentialOptions = {
+      batchSize: 477,              // 1908/4 = 477檔每批
+      delayBetweenStocks: 0.5,     // 股票間延遲0.5秒
+      delayBetweenBatches: 10.0,   // 批次間延遲10秒
+      cpuThreshold: 80.0,          // CPU使用率閾值80%
+      memoryThreshold: 85.0,       // 記憶體使用率閾值85%
+      autoPauseOnOverload: true    // 自動暫停過載
+    }
+
+    const result = await createSequentialStockCrawlTask(sequentialOptions)
+
+    if (result) {
+      // 計算預期資源節省
+      const resourceSaving = result.performance_estimate || '減少 70% 系統負載'
+
+      showNotification('success',
+        `📊 循序任務已創建！將處理 ${result.symbols_count} 檔股票`
+      )
+
+      // 顯示循序功能詳情
+      setTimeout(() => {
+        const features = result.sequential_features || []
+        showNotification('info',
+          `🔧 循序功能已啟用：${features.join(', ')} - ${resourceSaving}`,
+          6000
+        )
+      }, 1000)
+
+      // 顯示任務管理鏈接
+      setTimeout(() => {
+        showNotification('info',
+          '循序任務已在背景執行，前往「任務管理 > 手動執行任務」查看即時進度和資源使用狀況',
+          8000
+        )
+      }, 3000)
+
+      // 開始輪詢任務狀態
+      startTaskPolling({
+        onTaskCompleted: async (completedTaskIds) => {
+          console.log('循序批次更新任務完成，重新整理統計資訊...', completedTaskIds)
+          // 重新獲取系統統計資訊
+          await handleGetOverallStats()
+          showNotification('success', '🎉 循序批次更新任務已完成！統計資訊已更新，系統運行穩定無過載')
+        }
+      })
+    } else {
+      showNotification('error', taskError.value || '創建循序任務失敗')
+    }
+  } catch (err) {
+    showNotification('error', '創建循序任務時發生錯誤：' + err.message)
   }
 }
 

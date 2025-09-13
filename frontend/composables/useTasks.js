@@ -97,6 +97,92 @@ export const useTasks = () => {
   }
 
   /**
+   * 創建優化的股票爬蟲任務 (Point 58 新增)
+   * 使用高優先級與中優先級的優化功能
+   */
+  const createOptimizedStockCrawlTask = async (options = {}) => {
+    loading.value = true
+    error.value = null
+
+    const {
+      symbols = null,
+      maxWorkers = 4,
+      batchSize = 50,
+      enableSmartSkip = true,
+      enableBatchDbOperations = true,
+      smartSkipDays = 1
+    } = options
+
+    try {
+      const requestData = {
+        symbols,
+        max_workers: maxWorkers,
+        batch_size: batchSize,
+        enable_smart_skip: enableSmartSkip,
+        enable_batch_db_operations: enableBatchDbOperations,
+        smart_skip_days: smartSkipDays
+      }
+
+      const result = await post('/tasks/manual/optimized-stock-crawl', requestData)
+
+      if (result.success) {
+        // 重新獲取任務列表以顯示新任務
+        await getManualTasks()
+        return result.data
+      } else {
+        error.value = result.error
+        return null
+      }
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
+   * 創建循序股票爬蟲任務 (Point 65 新增)
+   * 使用資源友善的循序處理方式，避免系統過載
+   */
+  const createSequentialStockCrawlTask = async (options = {}) => {
+    loading.value = true
+    error.value = null
+
+    const {
+      symbols = null,
+      batchSize = 477,
+      delayBetweenStocks = 0.5,
+      delayBetweenBatches = 10.0,
+      cpuThreshold = 80.0,
+      memoryThreshold = 85.0,
+      autoPauseOnOverload = true
+    } = options
+
+    try {
+      const requestData = {
+        symbols,
+        batch_size: batchSize,
+        delay_between_stocks: delayBetweenStocks,
+        delay_between_batches: delayBetweenBatches,
+        cpu_threshold: cpuThreshold,
+        memory_threshold: memoryThreshold,
+        auto_pause_on_overload: autoPauseOnOverload
+      }
+
+      const result = await post('/tasks/manual/sequential-stock-crawl', requestData)
+
+      if (result.success) {
+        // 重新獲取任務列表以顯示新任務
+        await getManualTasks()
+        return result.data
+      } else {
+        error.value = result.error
+        return null
+      }
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
    * 取消執行中的任務
    */
   const cancelTask = async (taskId) => {
@@ -226,10 +312,12 @@ export const useTasks = () => {
     taskHistory: readonly(taskHistory),
     loading: readonly(loading),
     error: readonly(error),
-    
+
     // 方法
     getManualTasks,
     createStockCrawlTask,
+    createOptimizedStockCrawlTask,
+    createSequentialStockCrawlTask,
     cancelTask,
     getTaskDetails,
     clearCompletedTasks,

@@ -2028,3 +2028,65 @@ GET /api/v1/twse/stock/2330
 - 處理各種異常值情況
 - 確保 JSON 序列化相容性
 - 保持資料完整性
+
+## Point 18: 修復 /market-data/historical 頁面資料結構問題
+
+### ✅ 任務完成狀態：**100% 完成**
+
+**執行日期**: 2025-09-23
+
+**問題描述**: /market-data/historical 這一頁的資料結構，前端與後端API取得的資料結構不同，導致資料沒有正常被渲染出來
+
+#### 問題根因分析
+
+**資料結構不一致問題**：
+1. **API 實際回應**: `{ "status": "success", "stocks": [...], ... }`
+2. **useApi 封裝後**: `{ success: true, data: { status: "success", stocks: [...] }, error: null }`
+3. **useStocks.js 錯誤處理**: 檢查 `result.status === 'success'` 而非 `result.success`
+4. **historical.vue 資料存取**: 期望 `result.stocks` 但應為從封裝後的正確位置存取
+
+#### 修復內容
+
+**1. useStocks.js - getStocksWithData 函數**：
+```javascript
+// 修復前：
+if (result.status === 'success') {
+  return result
+}
+
+// 修復後：
+if (result.success && result.data?.status === 'success') {
+  return result.data  // 返回實際的 API 回應資料
+}
+```
+
+**2. historical.vue - handleRefreshStocksList 函數**：
+```javascript
+// 修復前：
+stocksWithData.value = result.stocks || []
+
+// 修復後：
+stocksWithData.value = result.stocks || []  // result 現在直接是 API 回應資料
+```
+
+#### 執行結果總結
+
+**✅ 任務完成狀態：100% 完成**
+
+**成功修復的問題**：
+1. ✅ 統一前後端 API 資料結構對應關係
+2. ✅ 修正 useStocks.js 中的 API 回應處理邏輯
+3. ✅ 修復 historical.vue 中股票清單資料的存取方式
+4. ✅ 歷史資料統計和股票清單正確顯示
+5. ✅ 所有 API 功能正常運作
+
+**技術改進重點**：
+- 確保 API 封裝層和實際使用層的資料結構一致性
+- 正確處理多層巢狀的 API 回應結構
+- 統一錯誤處理和成功狀態檢查邏輯
+
+**驗證結果**：
+- 歷史資料管理頁面正常顯示 1908 檔股票資料
+- 統計資訊正確顯示（總股票數、總記錄數等）
+- 股票查詢功能正常運作
+- 資料匯出功能正常運作

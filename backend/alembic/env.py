@@ -9,7 +9,7 @@ from alembic import context
 
 # Import your models here
 from src.core.database import Base
-from src.models.stock import Stock, StockPrice, TechnicalIndicator, TradingSignal
+from src.models.stock import Stock, StockDailyData, MovingAverages, TechnicalIndicators, StockScores, TaskExecutionLog
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

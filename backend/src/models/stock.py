@@ -10,14 +10,16 @@ from src.core.database import Base
 
 class Stock(Base):
     """Stock basic information model - 股票基本資訊表."""
-    
+
     __tablename__ = "stocks"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     stock_code = Column(String(20), unique=True, nullable=False, index=True, comment="股票代號")
     stock_name = Column(String(255), nullable=False, comment="股票名稱")
     market = Column(String(10), nullable=False, comment="市場別(TSE/TPEx)")
     industry = Column(String(100), comment="產業別")
+    capital_stock = Column(BigInteger, comment="實收資本額（股本）單位：元")
+    capital_updated_at = Column(DateTime(timezone=True), comment="股本資料更新時間")
     is_active = Column(Boolean, default=True, comment="是否啟用")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

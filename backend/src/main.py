@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 
-from src.api.endpoints import health, stocks, stock_sync, data, tasks, task_execution, moving_averages, stock_selection
+from src.api.endpoints import health, stocks, stock_sync, data, tasks, task_execution, moving_averages, stock_selection, twse, trading_days
 from src.core.config import settings
 from src.core.database import create_tables
 
@@ -125,6 +125,18 @@ app.include_router(
     stock_selection.router,
     prefix="/api/v1/stock-selection",
     tags=["Stock Selection"]
+)
+
+app.include_router(
+    twse.router,
+    prefix="/api/v1/twse",
+    tags=["TWSE Official API"]
+)
+
+app.include_router(
+    trading_days.router,
+    prefix="/api/v1/trading-days",
+    tags=["Trading Days Analysis"]
 )
 
 # Global exception handler

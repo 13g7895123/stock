@@ -26,7 +26,15 @@
           <p class="text-gray-600 dark:text-gray-300 mt-1">監控和管理股票歷史資料的品質與完整性</p>
         </div>
         <div class="flex items-center space-x-3">
-          <ActionButton 
+          <ActionButton
+            @click="handleCheckMissingTradingDays"
+            :loading="checkingMissingDays"
+            :icon="CalendarIcon"
+            text="檢查缺少交易日"
+            loading-text="檢查中..."
+            variant="secondary"
+          />
+          <ActionButton
             @click="handleRunQualityCheck"
             :loading="loading"
             :icon="MagnifyingGlassIcon"
@@ -94,6 +102,102 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- 缺少交易日分析 -->
+    <div v-if="missingTradingDays" class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm p-6">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">缺少交易日分析</h3>
+        <div class="flex items-center space-x-3">
+          <span class="text-sm text-gray-500 dark:text-gray-400">
+            分析期間：{{ missingTradingDays.analysis_period?.start_date }} ~ {{ missingTradingDays.analysis_period?.end_date }}
+            <span v-if="missingTradingDays.smart_analysis" class="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+              智能分析：{{ missingTradingDays.smart_analysis.analysis_reason }}
+            </span>
+          </span>
+          <button
+            @click="handleBatchFixMissingDates"
+            :disabled="!missingTradingDays.missing_dates?.length || fixingMissingDates"
+            class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {{ fixingMissingDates ? '修復中...' : '批次修復' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- 統計概覽 -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+          <div class="text-sm font-medium text-blue-600 dark:text-blue-400">資料完整率</div>
+          <div class="text-2xl font-bold text-blue-700 dark:text-blue-300">
+            {{ missingTradingDays.statistics?.completeness_rate || 0 }}%
+          </div>
+        </div>
+        <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+          <div class="text-sm font-medium text-green-600 dark:text-green-400">已有資料天數</div>
+          <div class="text-2xl font-bold text-green-700 dark:text-green-300">
+            {{ missingTradingDays.statistics?.total_existing_days || 0 }}
+          </div>
+        </div>
+        <div class="bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
+          <div class="text-sm font-medium text-red-600 dark:text-red-400">缺少天數</div>
+          <div class="text-2xl font-bold text-red-700 dark:text-red-300">
+            {{ missingTradingDays.statistics?.total_missing_days || 0 }}
+          </div>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+          <div class="text-sm font-medium text-gray-600 dark:text-gray-400">潛在交易日</div>
+          <div class="text-2xl font-bold text-gray-700 dark:text-gray-300">
+            {{ missingTradingDays.statistics?.total_potential_trading_days || 0 }}
+          </div>
+        </div>
+      </div>
+
+      <!-- 缺少日期清單 -->
+      <div v-if="missingTradingDays.missing_dates?.length">
+        <h4 class="text-md font-medium text-gray-900 dark:text-white mb-3">
+          缺少的交易日 ({{ missingTradingDays.missing_dates.length }} 天)
+        </h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-64 overflow-y-auto">
+          <div
+            v-for="missing in missingTradingDays.missing_dates"
+            :key="missing.date"
+            class="border border-gray-200 dark:border-gray-600 rounded-lg p-3 hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="font-medium text-gray-900 dark:text-white">{{ missing.date }}</div>
+                <div class="text-sm text-gray-500 dark:text-gray-400">{{ missing.weekday }}</div>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="text-xs px-2 py-1 rounded"
+                      :class="missing.is_recent ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                              missing.is_weekend ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400' :
+                              'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'">
+                  {{ missing.days_ago }} 天前
+                </span>
+                <button
+                  @click="handleFixSingleDate(missing.date)"
+                  :disabled="missing.is_weekend || fixingSingleDate === missing.date"
+                  class="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {{ fixingSingleDate === missing.date ? '修復中' : '修復' }}
+                </button>
+              </div>
+            </div>
+            <div class="mt-2">
+              <div class="text-xs text-gray-500 dark:text-gray-400">
+                可能原因：{{ missing.possible_reasons?.[0] || '未知' }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div v-else class="text-center py-8">
+        <CheckCircleIcon class="mx-auto h-12 w-12 text-green-500" />
+        <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">沒有缺少的交易日</h3>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">在分析期間內，所有潛在交易日都有資料</p>
       </div>
     </div>
 
@@ -362,6 +466,13 @@ definePageMeta({
 
 // 使用組合式函數
 const { loading, error } = useStocks()
+const {
+  loading: tradingDaysLoading,
+  getMissingTradingDaysSummary,
+  getSmartMissingTradingDaysAnalysis,
+  updateMissingDate,
+  batchUpdateMissingDates
+} = useTradingDays()
 
 // 響應式資料
 const qualityOverview = ref({
@@ -388,6 +499,12 @@ const qualityRules = ref({
     anomaly_multiplier: 5
   }
 })
+
+// 缺少交易日相關響應式資料
+const missingTradingDays = ref(null)
+const checkingMissingDays = ref(false)
+const fixingMissingDates = ref(false)
+const fixingSingleDate = ref(null)
 
 const qualityIssues = ref([
   {
@@ -446,6 +563,103 @@ const filteredIssues = computed(() => {
 })
 
 // 處理函數
+const handleCheckMissingTradingDays = async () => {
+  checkingMissingDays.value = true
+
+  try {
+    showNotification('info', '正在檢查缺少的交易日...')
+
+    // 使用智能分析，自動調整檢查範圍
+    const result = await getSmartMissingTradingDaysAnalysis()
+
+    if (result) {
+      missingTradingDays.value = result
+
+      const missingCount = result.statistics?.total_missing_days || 0
+      if (missingCount > 0) {
+        showNotification('warning', `發現 ${missingCount} 個缺少的交易日`)
+      } else {
+        showNotification('success', '沒有發現缺少的交易日')
+      }
+    } else {
+      showNotification('error', '檢查缺少交易日失敗')
+    }
+  } catch (error) {
+    console.error('檢查缺少交易日時發生錯誤:', error)
+    showNotification('error', '檢查缺少交易日時發生錯誤')
+  } finally {
+    checkingMissingDays.value = false
+  }
+}
+
+const handleFixSingleDate = async (date) => {
+  fixingSingleDate.value = date
+
+  try {
+    showNotification('info', `正在修復 ${date} 的缺少資料...`)
+
+    const result = await updateMissingDate(date)
+
+    if (result) {
+      showNotification('success', `${date} 資料修復成功`)
+
+      // 重新檢查缺少的交易日
+      await handleCheckMissingTradingDays()
+    } else {
+      showNotification('error', `${date} 資料修復失敗`)
+    }
+  } catch (error) {
+    console.error(`修復 ${date} 資料時發生錯誤:`, error)
+    showNotification('error', `修復 ${date} 資料時發生錯誤`)
+  } finally {
+    fixingSingleDate.value = null
+  }
+}
+
+const handleBatchFixMissingDates = async () => {
+  if (!missingTradingDays.value?.missing_dates?.length) {
+    showNotification('warning', '沒有需要修復的缺少交易日')
+    return
+  }
+
+  // 只修復非週末且非最近的日期
+  const datesToFix = missingTradingDays.value.missing_dates
+    .filter(missing => !missing.is_weekend && !missing.is_recent)
+    .map(missing => missing.date)
+
+  if (datesToFix.length === 0) {
+    showNotification('info', '沒有可以自動修復的交易日')
+    return
+  }
+
+  fixingMissingDates.value = true
+
+  try {
+    showNotification('info', `正在批次修復 ${datesToFix.length} 個缺少的交易日...`)
+
+    const results = await batchUpdateMissingDates(datesToFix, (progress) => {
+      console.log(`修復進度: ${progress.percentage}% (${progress.current}/${progress.total})`)
+    })
+
+    const { successful, failed, total } = results
+
+    if (successful > 0) {
+      showNotification('success', `批次修復完成！成功：${successful}，失敗：${failed}，總計：${total}`)
+    } else {
+      showNotification('error', `批次修復失敗！所有 ${total} 個日期都修復失敗`)
+    }
+
+    // 重新檢查缺少的交易日
+    await handleCheckMissingTradingDays()
+
+  } catch (error) {
+    console.error('批次修復缺少交易日時發生錯誤:', error)
+    showNotification('error', '批次修復缺少交易日時發生錯誤')
+  } finally {
+    fixingMissingDates.value = false
+  }
+}
+
 const handleRunQualityCheck = async () => {
   showNotification('info', '開始執行品質檢查...')
   

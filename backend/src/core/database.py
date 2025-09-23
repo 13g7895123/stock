@@ -2,9 +2,23 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.engine import make_url
 from typing import Generator
 
 from .config import settings
+
+# Determine connection arguments based on database backend
+db_url = make_url(str(settings.DATABASE_URL))
+
+connect_args = {}
+if db_url.drivername.startswith("sqlite"):
+    # SQLite does not support client_encoding/connect_timeout and needs relaxed threading
+    connect_args["check_same_thread"] = False
+else:
+    connect_args = {
+        "client_encoding": "utf8",
+        "connect_timeout": 10,
+    }
 
 # Create database engine
 engine = create_engine(
@@ -14,10 +28,7 @@ engine = create_engine(
     pool_pre_ping=True,
     pool_recycle=300,
     echo=settings.DEBUG,
-    connect_args={
-        "client_encoding": "utf8",
-        "connect_timeout": 10
-    }
+    connect_args=connect_args,
 )
 
 # Create session factory

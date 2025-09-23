@@ -250,14 +250,15 @@ export const useStocks = () => {
   const getStocksWithData = async (params = {}) => {
     loading.value = true
     error.value = null
-    
+
     try {
       const result = await get('/data/history/stocks-with-data', params)
-      
-      if (result.success) {
-        return result.data
+
+      // API 封裝格式: {success: true, data: {status: "success", stocks: [...], ...}, error: null}
+      if (result.success && result.data?.status === 'success') {
+        return result.data  // 返回實際的 API 回應資料
       } else {
-        error.value = result.error
+        error.value = result.error || '獲取股票清單失敗'
         return null
       }
     } finally {

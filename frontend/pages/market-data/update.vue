@@ -211,6 +211,115 @@
           </div>
         </div>
 
+        <!-- Point 13: 智能批次更新管理 -->
+        <div class="p-4 border border-blue-200 dark:border-blue-600 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+          <div class="flex items-start justify-between">
+            <div class="flex-1">
+              <h4 class="font-medium text-gray-900 dark:text-white">🧠 智能批次更新 (證交所API)</h4>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                自動分析股票資料完整性，智能識別缺少的交易日，並透過證交所API精準修復
+              </p>
+              <p class="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                資料來源: 台灣證券交易所官方歷史資料API
+              </p>
+
+              <!-- Point 13 問題解決提示 -->
+              <div class="mt-2 p-2 bg-yellow-100 dark:bg-yellow-900/30 border-l-4 border-yellow-400 rounded">
+                <p class="text-xs text-yellow-700 dark:text-yellow-300">
+                  💡 <strong>解決「沒有要更新的」問題</strong>：請確保啟用下方的「🔄 強制刷新模式」，
+                  即使資料完整度很高也會刷新最近交易日確保資料最新！
+                </p>
+              </div>
+            </div>
+
+            <!-- 強制刷新模式切換 -->
+            <div class="mt-3 p-3 border rounded-lg" :class="smartBatchUpdate.forceRefresh ? 'border-green-300 bg-green-50 dark:border-green-600 dark:bg-green-900/20' : 'border-gray-300 bg-gray-50 dark:border-gray-600 dark:bg-gray-700'">
+              <div class="flex items-center space-x-2">
+                <input
+                  v-model="smartBatchUpdate.forceRefresh"
+                  type="checkbox"
+                  id="forceRefreshMode"
+                  class="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 dark:focus:ring-green-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                />
+                <label for="forceRefreshMode" class="text-sm font-medium" :class="smartBatchUpdate.forceRefresh ? 'text-green-700 dark:text-green-200' : 'text-gray-700 dark:text-gray-300'">
+                  🔄 強制刷新模式
+                </label>
+              </div>
+              <p class="text-xs mt-1" :class="smartBatchUpdate.forceRefresh ? 'text-green-600 dark:text-green-300' : 'text-gray-500 dark:text-gray-400'">
+                {{ smartBatchUpdate.forceRefresh ? '✅ 啟用：即使沒有缺少資料也會刷新最近交易日確保資料最新' : '停用：只檢查缺少的交易日' }}
+              </p>
+            </div>
+
+            <!-- 分析結果顯示 -->
+            <div v-if="smartBatchUpdate.analysis" class="mt-3 p-3 bg-white dark:bg-gray-800 rounded border">
+              <div class="text-xs text-gray-600 dark:text-gray-300">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <div>
+                    <span class="text-gray-500">分析期間:</span>
+                    <span class="ml-1 font-medium">{{ smartBatchUpdate.analysis.analysis_period?.start_date }} ~ {{ smartBatchUpdate.analysis.analysis_period?.end_date }}</span>
+                  </div>
+                  <div>
+                    <span class="text-gray-500">資料完整度:</span>
+                    <span class="ml-1 font-medium text-green-600">{{ smartBatchUpdate.analysis.statistics?.completeness_percentage || 0 }}%</span>
+                  </div>
+                  <div>
+                    <span class="text-gray-500">缺少天數:</span>
+                    <span class="ml-1 font-medium text-red-600">{{ smartBatchUpdate.analysis.statistics?.total_missing_days || 0 }}</span>
+                  </div>
+                  <div>
+                    <span class="text-gray-500">可修復:</span>
+                    <span class="ml-1 font-medium text-blue-600">{{ smartBatchUpdate.analysis.api_calls?.length || 0 }} 個API調用</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 執行進度顯示 -->
+            <div v-if="smartBatchUpdate.isExecuting" class="mt-3">
+              <div class="text-xs text-blue-600 dark:text-blue-400">
+                {{ smartBatchUpdate.progress.currentAction || '執行中...' }}
+                ({{ smartBatchUpdate.progress.current }} / {{ smartBatchUpdate.progress.total }})
+              </div>
+              <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-1">
+                <div
+                  class="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  :style="{ width: `${smartBatchUpdate.progress.percentage}%` }"
+                ></div>
+              </div>
+            </div>
+
+            <!-- 執行結果顯示 -->
+            <div v-if="smartBatchUpdate.results" class="mt-3 p-2 bg-gray-100 dark:bg-gray-700 rounded text-xs">
+              <span class="text-green-600">✅ 成功: {{ smartBatchUpdate.results.successful }}</span>
+              <span class="text-red-600 ml-3">❌ 失敗: {{ smartBatchUpdate.results.failed }}</span>
+              <span class="text-gray-500 ml-3">總計: {{ smartBatchUpdate.results.total }}</span>
+            </div>
+
+            <!-- 操作按鈕 -->
+            <div class="mt-4 flex items-center space-x-2">
+              <ActionButton
+                @click="handleSmartBatchAnalysis"
+                :loading="smartBatchUpdate.isAnalyzing || tradingDaysLoading"
+                :icon="ChartBarIcon"
+                text="智能分析"
+                loading-text="分析中..."
+                variant="info"
+                size="sm"
+              />
+              <ActionButton
+                @click="handleSmartBatchUpdate"
+                :loading="smartBatchUpdate.isExecuting"
+                :disabled="!smartBatchUpdate.analysis || !smartBatchUpdate.analysis.api_calls || smartBatchUpdate.analysis.api_calls.length === 0"
+                :icon="ArrowPathIcon"
+                text="執行修復"
+                loading-text="修復中..."
+                variant="success"
+                size="sm"
+              />
+            </div>
+          </div>
+        </div>
+
         <!-- 最近更新記錄 -->
         <div v-if="recentUpdates.length > 0" class="mt-6">
           <h4 class="font-medium text-gray-900 dark:text-white mb-3">最近更新記錄</h4>
@@ -287,6 +396,13 @@ const {
   error: taskError
 } = useTasks()
 
+const {
+  getSmartBatchUpdateAnalysis,
+  executeSmartBatchUpdate,
+  loading: tradingDaysLoading,
+  error: tradingDaysError
+} = useTradingDays()
+
 // 響應式資料
 const singleStockSymbol = ref('')
 const overallStats = ref(null)
@@ -300,6 +416,21 @@ const batchUpdateProgress = ref({
   processed: 0,
   total: 0,
   startTime: null
+})
+
+// 智能批次更新狀態
+const smartBatchUpdate = ref({
+  analysis: null,
+  isAnalyzing: false,
+  isExecuting: false,
+  forceRefresh: true,  // 強制刷新模式開關 - 預設啟用以解決用戶問題
+  progress: {
+    current: 0,
+    total: 0,
+    percentage: 0,
+    currentAction: ''
+  },
+  results: null
 })
 
 // 通知系統
@@ -533,6 +664,102 @@ const handleSequentialUpdateAllStocks = async () => {
     }
   } catch (err) {
     showNotification('error', '創建循序任務時發生錯誤：' + err.message)
+  }
+}
+
+// Point 13: 智能批次更新分析
+const handleSmartBatchAnalysis = async () => {
+  smartBatchUpdate.value.isAnalyzing = true
+  smartBatchUpdate.value.analysis = null
+
+  try {
+    const refreshMode = smartBatchUpdate.value.forceRefresh
+    const modeText = refreshMode ? '強制刷新模式' : '缺少資料檢查模式'
+
+    showNotification('info', `🧠 正在進行智能分析 (${modeText})，檢查股票資料完整性...`)
+
+    const analysisResult = await getSmartBatchUpdateAnalysis(30, refreshMode)
+
+    if (analysisResult) {
+      smartBatchUpdate.value.analysis = analysisResult
+
+      const fixableCount = analysisResult.api_calls?.length || 0
+      const totalMissing = analysisResult.statistics?.total_missing_days || 0
+
+      if (fixableCount > 0) {
+        if (refreshMode) {
+          showNotification('success',
+            `🔄 強制刷新分析完成！將刷新最近 ${fixableCount} 個交易日的資料`
+          )
+        } else {
+          showNotification('success',
+            `🔍 分析完成！發現 ${totalMissing} 個缺少的交易日，其中 ${fixableCount} 個可透過證交所API修復`
+          )
+        }
+      } else {
+        if (refreshMode) {
+          showNotification('info', `⚠️ 強制刷新模式：無法生成刷新清單`)
+        } else {
+          showNotification('info', `✅ 分析完成！資料完整性良好，目前沒有需要修復的缺少交易日`)
+        }
+      }
+    } else {
+      showNotification('error', tradingDaysError.value || '智能分析失敗')
+    }
+  } catch (err) {
+    showNotification('error', '執行智能分析時發生錯誤：' + err.message)
+  } finally {
+    smartBatchUpdate.value.isAnalyzing = false
+  }
+}
+
+// Point 13: 執行智能批次更新
+const handleSmartBatchUpdate = async () => {
+  if (!smartBatchUpdate.value.analysis || !smartBatchUpdate.value.analysis.api_calls) {
+    showNotification('error', '請先執行智能分析')
+    return
+  }
+
+  const apiCalls = smartBatchUpdate.value.analysis.api_calls
+  if (apiCalls.length === 0) {
+    showNotification('info', '沒有需要修復的資料')
+    return
+  }
+
+  smartBatchUpdate.value.isExecuting = true
+  smartBatchUpdate.value.progress = {
+    current: 0,
+    total: apiCalls.length,
+    percentage: 0,
+    currentAction: '準備開始...'
+  }
+
+  try {
+    showNotification('info', `🚀 開始執行智能批次更新，將處理 ${apiCalls.length} 個API調用...`)
+
+    const results = await executeSmartBatchUpdate(apiCalls, (progress) => {
+      smartBatchUpdate.value.progress = progress
+    })
+
+    smartBatchUpdate.value.results = results
+
+    if (results.successful > 0) {
+      showNotification('success',
+        `✅ 智能批次更新完成！成功: ${results.successful}，失敗: ${results.failed}`
+      )
+
+      // 重新獲取系統統計資訊
+      setTimeout(async () => {
+        await handleGetOverallStats()
+        showNotification('info', '統計資訊已更新')
+      }, 2000)
+    } else {
+      showNotification('error', `❌ 批次更新失敗，所有 ${results.total} 個調用都失敗了`)
+    }
+  } catch (err) {
+    showNotification('error', '執行智能批次更新時發生錯誤：' + err.message)
+  } finally {
+    smartBatchUpdate.value.isExecuting = false
   }
 }
 

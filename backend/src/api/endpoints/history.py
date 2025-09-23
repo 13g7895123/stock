@@ -52,8 +52,11 @@ async def get_overall_statistics(
         
         logger.info(f"Successfully retrieved overall statistics: "
                    f"{result['total_stocks']} stocks, {result['total_records']} records")
-        
-        return result
+
+        return {
+            "status": "success",
+            "data": result
+        }
         
     except Exception as e:
         # 系統錯誤

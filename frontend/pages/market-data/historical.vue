@@ -597,10 +597,11 @@ const handleRefreshStocksList = async (showMessage = true) => {
   // 移除分頁參數，一次性載入所有資料
   const params = { limit: 9999 } // 獲取所有股票資料
   const result = await getStocksWithData(params)
-  
+
   if (result) {
+    // result 現在直接是 API 回應資料，包含 stocks 屬性
     stocksWithData.value = result.stocks || []
-    
+
     if (showMessage && stocksWithData.value.length > 0) {
       showNotification('success', `載入 ${stocksWithData.value.length} 檔有資料股票`)
     } else if (showMessage) {
@@ -611,7 +612,7 @@ const handleRefreshStocksList = async (showMessage = true) => {
       showNotification('error', error.value || '載入股票清單失敗')
     }
   }
-  
+
   stocksListLoading.value = false
 }
 

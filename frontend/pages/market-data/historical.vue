@@ -114,7 +114,16 @@
             </div>
             
             <!-- 操作按鈕 -->
-            <ActionButton 
+            <ActionButton
+              @click="handleAnalyzeAndUpdate"
+              :loading="isAnalyzing"
+              :icon="MagnifyingGlassIcon"
+              text="分析並更新缺失資料"
+              variant="primary"
+              size="sm"
+              class="mr-2"
+            />
+            <ActionButton
               @click="handleRefreshStocksList"
               :loading="stocksListLoading"
               :icon="ArrowPathIcon"
@@ -126,6 +135,26 @@
         </div>
       </div>
 
+      <!-- 更新進度顯示 -->
+      <div v-if="isAnalyzing && updateProgress.total > 0" class="px-6 py-4 bg-blue-50 dark:bg-blue-900/20">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm text-blue-700 dark:text-blue-300">
+            正在更新股票資料 ({{ updateProgress.current }}/{{ updateProgress.total }})
+          </span>
+          <span class="text-sm text-blue-600 dark:text-blue-400">
+            {{ updateProgress.stockCode }}
+          </span>
+        </div>
+        <div class="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+          <div
+            class="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all duration-300"
+            :style="{ width: `${(updateProgress.current / updateProgress.total) * 100}%` }"
+          ></div>
+        </div>
+        <div v-if="updateProgress.failedStocks.length > 0" class="mt-2 text-xs text-red-600 dark:text-red-400">
+          失敗股票: {{ updateProgress.failedStocks.join(', ') }}
+        </div>
+      </div>
 
       <!-- 股票清單內容 -->
       <CollapsibleStockTable
@@ -373,6 +402,13 @@ const pagination = ref({
 // 股票清單相關資料
 const stocksWithData = ref([])
 const stocksListLoading = ref(false)
+const isAnalyzing = ref(false)
+const updateProgress = ref({
+  total: 0,
+  current: 0,
+  stockCode: '',
+  failedStocks: []
+})
 const stocksPagination = ref({
   page: 1,
   limit: 50,
@@ -634,10 +670,10 @@ const viewStockHistory = (stockCode) => {
 const updateStockData = async (stockCode) => {
   try {
     showNotification('info', `正在更新股票 ${stockCode} 的資料...`)
-    
+
     // 調用資料更新API (使用GET方法)
     const response = await $fetch(`http://localhost:9127/api/v1/data/daily/${stockCode}`)
-    
+
     if (response.status === 'success') {
       const message = `股票 ${stockCode} 資料更新成功 (處理 ${response.records_processed} 筆，新增 ${response.records_created} 筆，更新 ${response.records_updated} 筆)`
       showNotification('success', message)
@@ -655,6 +691,133 @@ const updateStockData = async (stockCode) => {
     const errorMessage = error.data?.detail || error.message || '更新失敗'
     showNotification('error', `更新股票 ${stockCode} 資料失敗: ${errorMessage}`)
   }
+}
+
+// 分析並更新缺少最新資料的股票
+const handleAnalyzeAndUpdate = async () => {
+  if (isAnalyzing.value) {
+    showNotification('info', '正在分析中，請稍候...')
+    return
+  }
+
+  isAnalyzing.value = true
+  updateProgress.value = {
+    total: 0,
+    current: 0,
+    stockCode: '',
+    failedStocks: []
+  }
+
+  try {
+    showNotification('info', '正在分析股票資料狀況...')
+
+    // 取得所有股票的最新日期
+    const today = new Date()
+    const latestTradingDate = getLatestTradingDate() // 取得最新的交易日（排除週末）
+
+    // 分析哪些股票沒有最新資料
+    const stocksNeedUpdate = []
+
+    for (const stock of stocksWithData.value) {
+      const stockLatestDate = new Date(stock.latest_date)
+      const daysDiff = Math.floor((latestTradingDate - stockLatestDate) / (1000 * 60 * 60 * 24))
+
+      // 如果資料落後超過1天（考慮週末），就需要更新
+      if (daysDiff > 0) {
+        stocksNeedUpdate.push({
+          stock_code: stock.stock_code,
+          stock_name: stock.stock_name,
+          latest_date: stock.latest_date,
+          days_behind: daysDiff
+        })
+      }
+    }
+
+    if (stocksNeedUpdate.length === 0) {
+      showNotification('success', '所有股票資料都是最新的！')
+      isAnalyzing.value = false
+      return
+    }
+
+    // 顯示分析結果
+    const confirmUpdate = confirm(
+      `發現 ${stocksNeedUpdate.length} 檔股票需要更新資料。\n` +
+      `最多落後天數：${Math.max(...stocksNeedUpdate.map(s => s.days_behind))} 天\n\n` +
+      `是否要開始更新這些股票？`
+    )
+
+    if (!confirmUpdate) {
+      showNotification('info', '已取消更新')
+      isAnalyzing.value = false
+      return
+    }
+
+    // 開始逐一更新
+    updateProgress.value.total = stocksNeedUpdate.length
+    showNotification('info', `開始更新 ${stocksNeedUpdate.length} 檔股票的資料...`)
+
+    for (let i = 0; i < stocksNeedUpdate.length; i++) {
+      const stock = stocksNeedUpdate[i]
+      updateProgress.value.current = i + 1
+      updateProgress.value.stockCode = stock.stock_code
+
+      try {
+        // 調用更新 API
+        const response = await $fetch(`http://localhost:9127/api/v1/data/daily/${stock.stock_code}`)
+
+        if (response.status === 'success') {
+          console.log(`✅ ${stock.stock_code} 更新成功`)
+        } else {
+          console.warn(`⚠️ ${stock.stock_code} 更新狀態: ${response.status}`)
+        }
+
+        // 避免請求過快，加入小延遲
+        await new Promise(resolve => setTimeout(resolve, 500))
+
+      } catch (error) {
+        console.error(`❌ ${stock.stock_code} 更新失敗:`, error)
+        updateProgress.value.failedStocks.push(stock.stock_code)
+      }
+    }
+
+    // 更新完成後重新整理
+    await handleRefreshStocksList(false)
+    await handleRefreshStats()
+
+    // 顯示結果
+    const successCount = updateProgress.value.total - updateProgress.value.failedStocks.length
+    if (updateProgress.value.failedStocks.length === 0) {
+      showNotification('success', `成功更新 ${successCount} 檔股票的資料！`)
+    } else {
+      showNotification('warning',
+        `更新完成：成功 ${successCount} 檔，失敗 ${updateProgress.value.failedStocks.length} 檔\n` +
+        `失敗股票：${updateProgress.value.failedStocks.join(', ')}`
+      )
+    }
+
+  } catch (error) {
+    console.error('分析更新過程發生錯誤:', error)
+    showNotification('error', '分析更新過程發生錯誤，請稍後再試')
+  } finally {
+    isAnalyzing.value = false
+  }
+}
+
+// 取得最新交易日（排除週末）
+const getLatestTradingDate = () => {
+  const today = new Date()
+  const day = today.getDay()
+
+  // 如果是週日(0)，返回週五
+  if (day === 0) {
+    today.setDate(today.getDate() - 2)
+  }
+  // 如果是週六(6)，返回週五
+  else if (day === 6) {
+    today.setDate(today.getDate() - 1)
+  }
+
+  return today
 }
 
 // 監聽查詢參數變化

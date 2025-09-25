@@ -18,6 +18,8 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
+
 // defineProps 和 defineEmits 是編譯器宏，不需要import
 
 const props = defineProps({

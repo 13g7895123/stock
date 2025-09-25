@@ -335,7 +335,10 @@ const pageTitle = computed(() => {
     '/stocks/history': '股票歷史資料',
     '/market-data/historical': '歷史資料管理',
     '/market-data/update': '資料更新管理',
-    '/market-data/quality': '資料品質管理'
+    '/market-data/quality': '資料品質管理',
+    '/market-data/capital-stock': '股本資料管理',
+    '/market-data/institutional-trading': '投信外資買賣超管理',
+    '/market-data/trading-rankings': '三大法人買賣超排名'
   }
   return titles[route.path] || 'Page'
 })

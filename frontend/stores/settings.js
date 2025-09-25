@@ -25,7 +25,11 @@ export const useSettingsStore = defineStore('settings', () => {
       children: [
         { name: '歷史資料', href: '/market-data/historical' },
         { name: '資料更新', href: '/market-data/update' },
-        { name: '資料品質', href: '/market-data/quality' }
+        { name: '資料品質', href: '/market-data/quality' },
+        { name: '股本資料', href: '/market-data/capital-stock' },
+        { name: '投信外資買賣超', href: '/market-data/institutional-trading' },
+        { name: '股本比分析', href: '/market-data/capital-ratio-analysis' },
+        { name: '三大法人排名', href: '/market-data/trading-rankings' }
       ]
     },
     {

@@ -168,9 +168,62 @@ class StockScores(Base):
         return f"<StockScores(stock_id='{self.stock_id}', score_date='{self.score_date}', total_score={self.total_score})>"
 
 
+class InstitutionalTradingData(Base):
+    """Institutional trading data model - 投信外資買賣超資料表."""
+
+    __tablename__ = "institutional_trading_data"
+
+    id = Column(BigInteger, primary_key=True, index=True)
+    stock_code = Column(String(10), nullable=False, index=True, comment="股票代號")
+    stock_name = Column(String(255), nullable=False, comment="股票名稱")
+    trade_date = Column(DateTime(timezone=True), nullable=False, index=True, comment="交易日期")
+
+    # 外陸資 (不含外資自營商)
+    foreign_buy = Column(BigInteger, default=0, comment="外陸資買進股數")
+    foreign_sell = Column(BigInteger, default=0, comment="外陸資賣出股數")
+    foreign_net = Column(BigInteger, default=0, comment="外陸資買賣超股數")
+
+    # 外資自營商
+    foreign_dealer_buy = Column(BigInteger, default=0, comment="外資自營商買進股數")
+    foreign_dealer_sell = Column(BigInteger, default=0, comment="外資自營商賣出股數")
+    foreign_dealer_net = Column(BigInteger, default=0, comment="外資自營商買賣超股數")
+
+    # 投信
+    investment_trust_buy = Column(BigInteger, default=0, comment="投信買進股數")
+    investment_trust_sell = Column(BigInteger, default=0, comment="投信賣出股數")
+    investment_trust_net = Column(BigInteger, default=0, comment="投信買賣超股數")
+
+    # 自營商
+    dealer_net = Column(BigInteger, default=0, comment="自營商買賣超股數")
+    dealer_self_buy = Column(BigInteger, default=0, comment="自營商買進股數(自行買賣)")
+    dealer_self_sell = Column(BigInteger, default=0, comment="自營商賣出股數(自行買賣)")
+    dealer_self_net = Column(BigInteger, default=0, comment="自營商買賣超股數(自行買賣)")
+    dealer_hedge_buy = Column(BigInteger, default=0, comment="自營商買進股數(避險)")
+    dealer_hedge_sell = Column(BigInteger, default=0, comment="自營商賣出股數(避險)")
+    dealer_hedge_net = Column(BigInteger, default=0, comment="自營商買賣超股數(避險)")
+
+    # 三大法人合計
+    total_institutional_net = Column(BigInteger, default=0, comment="三大法人買賣超股數")
+
+    # 資料來源和品質
+    data_source = Column(String(50), default="TWSE_T86", comment="資料來源")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="建立時間")
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), comment="更新時間")
+
+    __table_args__ = (
+        UniqueConstraint('stock_code', 'trade_date', name='uq_institutional_stock_date'),
+        Index('idx_institutional_stock_date', 'stock_code', 'trade_date'),
+        Index('idx_institutional_trade_date', 'trade_date'),
+        Index('idx_institutional_stock_code', 'stock_code'),
+    )
+
+    def __repr__(self) -> str:
+        return f"<InstitutionalTradingData(stock_code='{self.stock_code}', trade_date='{self.trade_date}', total_net={self.total_institutional_net})>"
+
+
 class TaskExecutionLog(Base):
     """Task execution log model - 任務執行紀錄表."""
-    
+
     __tablename__ = "task_execution_logs"
     
     id = Column(BigInteger, primary_key=True, index=True)

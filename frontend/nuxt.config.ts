@@ -19,9 +19,25 @@ export default defineNuxtConfig({
     devProxy: {
       '/api': {
         target: 'http://localhost:9127',
-        changeOrigin: true
+        changeOrigin: true,
+        prependPath: true
       }
     }
+  },
+  vite: {
+    plugins: [
+      // Disable vue-inspector plugin to fix "Invalid end tag" errors
+      {
+        name: 'disable-vue-inspector',
+        configureServer(server) {
+          const plugin = server.config.plugins.find(p => p?.name === 'vite-plugin-vue-inspector')
+          if (plugin) {
+            plugin.buildStart = () => {}
+            plugin.transform = () => null
+          }
+        }
+      }
+    ]
   },
   colorMode: {
     preference: 'system',

@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 
-from src.api.endpoints import health, stocks, stock_sync, data, tasks, task_execution, moving_averages, stock_selection, twse, trading_days, capital_stock
+from src.api.endpoints import health, stocks, stock_sync, data, tasks, task_execution, moving_averages, stock_selection, twse, trading_days, capital_stock, institutional_trading
 from src.core.config import settings
 from src.core.database import create_tables
 
@@ -143,6 +143,12 @@ app.include_router(
     capital_stock.router,
     prefix="/api/v1/capital-stock",
     tags=["Capital Stock Data"]
+)
+
+app.include_router(
+    institutional_trading.router,
+    prefix="/api/v1/institutional-trading",
+    tags=["Institutional Trading Data"]
 )
 
 # Global exception handler

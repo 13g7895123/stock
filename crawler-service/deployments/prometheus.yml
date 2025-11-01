@@ -1,0 +1,37 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'stock-crawler'
+    environment: 'production'
+
+# 告警規則檔案
+rule_files:
+  # - "alerts.yml"
+
+# 服務發現配置
+scrape_configs:
+  # Go 爬蟲服務
+  - job_name: 'crawler-service'
+    static_configs:
+      - targets: ['crawler-service:8080']
+        labels:
+          service: 'crawler'
+          language: 'go'
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  # Prometheus 自身監控
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # PostgreSQL Exporter（如果有安裝）
+  # - job_name: 'postgres'
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']
+
+  # Redis Exporter（如果有安裝）
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']

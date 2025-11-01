@@ -1,0 +1,64 @@
+# 爬蟲服務配置檔案
+
+# 服務器配置
+server:
+  port: 8080
+  host: "0.0.0.0"
+  read_timeout: 30s
+  write_timeout: 30s
+  shutdown_timeout: 10s
+
+# 資料庫配置
+database:
+  url: "postgresql://stock_user:password@localhost:9221/stock_analysis"
+  pool_size: 20
+  max_idle: 10
+  max_lifetime: 300s
+  connect_timeout: 10s
+
+# 爬蟲配置
+crawler:
+  # 最大併發 Worker 數量
+  max_workers: 100
+
+  # 批次大小
+  batch_size: 50
+
+  # HTTP 請求超時
+  request_timeout: 30s
+
+  # 重試次數
+  retry_count: 3
+
+  # 智能跳過天數（資料在此天數內視為最新）
+  smart_skip_days: 1
+
+  # 券商 URL 列表
+  broker_urls:
+    - "http://fubon-ebrokerdj.fbs.com.tw/"
+    - "http://justdata.moneydj.com/"
+    - "http://jdata.yuanta.com.tw/"
+    - "http://moneydj.emega.com.tw/"
+    - "http://djfubonholdingfund.fbs.com.tw/"
+    - "https://sjmain.esunsec.com.tw/"
+    - "http://kgieworld.moneydj.com/"
+    - "http://newjust.masterlink.com.tw/"
+
+# 日誌配置
+logging:
+  level: "info"  # debug, info, warn, error
+  format: "json" # json, console
+  output: "stdout" # stdout, file
+  file_path: "/var/log/crawler-service/app.log"
+
+# 監控配置
+metrics:
+  enabled: true
+  port: 8080
+  path: "/metrics"
+
+# Redis 配置（快取，選配）
+redis:
+  enabled: false
+  url: "redis://localhost:9321/0"
+  pool_size: 10

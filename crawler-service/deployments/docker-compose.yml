@@ -1,0 +1,164 @@
+version: '3.8'
+
+services:
+  # Go 爬蟲服務
+  crawler-service:
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile
+    container_name: stock-crawler-go
+    restart: unless-stopped
+    ports:
+      - "${GO_CRAWLER_PORT:-8080}:8080"
+    environment:
+      # 資料庫配置
+      DATABASE_URL: ${DATABASE_URL:-postgresql://stock_user:password@postgres:5432/stock_analysis}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-20}
+      DB_MAX_IDLE: ${DB_MAX_IDLE:-10}
+
+      # 服務配置
+      SERVER_PORT: 8080
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+
+      # 爬蟲配置
+      MAX_WORKERS: ${MAX_WORKERS:-100}
+      BATCH_SIZE: ${BATCH_SIZE:-50}
+      REQUEST_TIMEOUT: ${REQUEST_TIMEOUT:-30s}
+      SMART_SKIP_DAYS: ${SMART_SKIP_DAYS:-1}
+
+      # 監控
+      ENABLE_METRICS: ${ENABLE_METRICS:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - stock-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 128M
+
+  # PostgreSQL 資料庫（與現有的共用）
+  postgres:
+    image: postgres:15-alpine
+    container_name: stock-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-9221}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-stock_analysis}
+      POSTGRES_USER: ${POSTGRES_USER:-stock_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - stock-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stock_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: stock-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-9321}:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - stock-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  # Prometheus（監控）
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: stock-prometheus
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - stock-network
+    depends_on:
+      - crawler-service
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+  # Grafana（視覺化）
+  grafana:
+    image: grafana/grafana:latest
+    container_name: stock-grafana
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: ''
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - stock-network
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+networks:
+  stock-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    name: stock_postgres_data
+  redis_data:
+    name: stock_redis_data
+  prometheus_data:
+    name: stock_prometheus_data
+  grafana_data:
+    name: stock_grafana_data

@@ -16,10 +16,9 @@ func NewParser() *Parser {
 }
 
 // ParseBrokerResponse 解析券商回應
-// 使用與 Python 版本相同的兩步驟邏輯
-// 步驟1: 智能分離日期和數字
-// 步驟2: 根據日期數量動態切分數據
-// 格式: date1,date2,...,dateN,open1,open2,...,openN,high1,...,highN,low1,...,lowN,close1,...,closeN,volume1,...,volumeN
+// 完全匹配 Python 版本的解析邏輯
+// 格式: date1,date2,...,dateN,data1_1,data1_2,...data1_5,data2_1,...
+// 其中每個日期對應 5 個數據點: open, high, low, close, volume
 func (p *Parser) ParseBrokerResponse(responseText, stockCode string) ([]DailyData, error) {
 	if responseText == "" {
 		return nil, fmt.Errorf("empty response")
@@ -31,9 +30,9 @@ func (p *Parser) ParseBrokerResponse(responseText, stockCode string) ([]DailyDat
 		return nil, fmt.Errorf("invalid response format")
 	}
 
-	// 步驟 1: 智能分離日期和數字
+	// 步驟 1: 分離日期和數字（完全匹配 Python 邏輯）
 	var dates []string
-	var allNumbers []float64
+	var numbers []float64
 
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
@@ -42,50 +41,14 @@ func (p *Parser) ParseBrokerResponse(responseText, stockCode string) ([]DailyDat
 		}
 
 		// 檢查是否為日期格式 (YYYY/MM/DD)
-		if strings.Contains(part, "/") {
-			dateParts := strings.Split(part, "/")
-			if len(dateParts) == 3 {
-				// 驗證是否為合法的西元年日期
-				if year, err := strconv.Atoi(dateParts[0]); err == nil {
-					if month, err := strconv.Atoi(dateParts[1]); err == nil {
-						if day, err := strconv.Atoi(dateParts[2]); err == nil {
-							// 西元年範圍驗證 (1900-2100)
-							if year >= 1900 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31 {
-								dates = append(dates, part)
-								continue
-							}
-						}
-					}
-				}
-			}
-		}
-
-		// 嘗試解析為數字
-		if num, err := strconv.ParseFloat(part, 64); err == nil {
-			allNumbers = append(allNumbers, num)
+		if strings.Contains(part, "/") && len(strings.Split(part, "/")) == 3 {
+			dates = append(dates, part)
 		} else {
-			// 處理混合格式 "date price" 或 "price1 price2"
-			if strings.Contains(part, " ") {
-				spaceParts := strings.Fields(part)
-				for _, spacePart := range spaceParts {
-					// 檢查是否為日期
-					if strings.Contains(spacePart, "/") {
-						dateParts := strings.Split(spacePart, "/")
-						if len(dateParts) == 3 {
-							if year, err := strconv.Atoi(dateParts[0]); err == nil {
-								if year >= 1900 && year <= 2100 {
-									dates = append(dates, spacePart)
-									continue
-								}
-							}
-						}
-					}
-					// 嘗試解析為數字
-					if num, err := strconv.ParseFloat(spacePart, 64); err == nil {
-						allNumbers = append(allNumbers, num)
-					}
-				}
+			// 嘗試解析為數字
+			if num, err := strconv.ParseFloat(part, 64); err == nil {
+				numbers = append(numbers, num)
 			}
+			// 非數字且非日期的部分會被跳過
 		}
 	}
 
@@ -93,75 +56,68 @@ func (p *Parser) ParseBrokerResponse(responseText, stockCode string) ([]DailyDat
 		return nil, fmt.Errorf("no valid dates found in response")
 	}
 
-	if len(allNumbers) == 0 {
+	if len(numbers) == 0 {
 		return nil, fmt.Errorf("no valid numbers found in response")
 	}
 
-	// 步驟 2: 根據日期數量動態切分數據
-	numDates := len(dates)
-
-	// 驗證數據完整性（至少需要 OHLC 四個字段）
-	if len(allNumbers) < numDates*4 {
-		return nil, fmt.Errorf("insufficient data: need at least %d numbers for OHLC, got %d", numDates*4, len(allNumbers))
+	// 步驟 2: 計算每個日期對應的數據點數量（Python 邏輯）
+	dataPointsPerDate := len(numbers) / len(dates)
+	
+	if dataPointsPerDate < 4 {
+		return nil, fmt.Errorf("not enough data points per date: need at least 4 (OHLC), got %d", dataPointsPerDate)
 	}
 
-	// 提取各部分數據
-	opens := allNumbers[0:numDates]
-	highs := allNumbers[numDates : numDates*2]
-	lows := allNumbers[numDates*2 : numDates*3]
-	closes := allNumbers[numDates*3 : numDates*4]
-
-	// Volume 可能不存在，使用容錯處理
-	var volumes []int64
-	if len(allNumbers) >= numDates*5 {
-		for i := 0; i < numDates; i++ {
-			idx := numDates*4 + i
-			if idx < len(allNumbers) {
-				volumes = append(volumes, int64(allNumbers[idx]))
-			} else {
-				volumes = append(volumes, 0)
-			}
-		}
-	} else {
-		// 如果沒有 volume 數據，填充 0
-		volumes = make([]int64, numDates)
-	}
-
-	// 組裝資料
+	// 步驟 3: 逐日期解析資料
 	var result []DailyData
 
-	for i := 0; i < numDates; i++ {
-		// 解析日期（格式: 2025/09/01）
-		tradeDate, err := p.parseDate(dates[i])
+	for i, dateStr := range dates {
+		// 解析日期
+		tradeDate, err := p.parseDate(dateStr)
 		if err != nil {
 			continue // 跳過無效日期
 		}
 
-		// 驗證價格數據的有效性
-		openPrice := opens[i]
-		highPrice := highs[i]
-		lowPrice := lows[i]
-		closePrice := closes[i]
-		volume := volumes[i]
+		// 計算此日期對應的數據索引
+		startIdx := i * dataPointsPerDate
+		endIdx := startIdx + dataPointsPerDate
 
-		// 基本驗證：價格必須為正
-		if openPrice <= 0 || highPrice <= 0 || lowPrice <= 0 || closePrice <= 0 || volume < 0 {
+		if endIdx > len(numbers) {
+			continue // 數據不完整，跳過
+		}
+
+		dataPoints := numbers[startIdx:endIdx]
+
+		// 檢查是否有足夠的數據點
+		if len(dataPoints) < 5 {
 			continue
 		}
 
-		data := DailyData{
-			StockCode:   stockCode,
-			TradeDate:   tradeDate,
-			OpenPrice:   openPrice,
-			HighPrice:   highPrice,
-			LowPrice:    lowPrice,
-			ClosePrice:  closePrice,
-			Volume:      volume,
-			DataSource:  "go_broker_crawler",
-			DataQuality: "corrected_daily",
-		}
+		// 解析 OHLCV（假設順序為：open, high, low, close, volume）
+		openPrice := dataPoints[0]
+		highPrice := dataPoints[1]
+		lowPrice := dataPoints[2]
+		closePrice := dataPoints[3]
+		volume := int64(dataPoints[4])
 
-		result = append(result, data)
+		// 基本驗證（完全匹配 Python 的驗證邏輯）
+		if openPrice > 0 && highPrice > 0 && lowPrice > 0 && closePrice > 0 && volume >= 0 &&
+			lowPrice <= openPrice && openPrice <= highPrice &&
+			lowPrice <= closePrice && closePrice <= highPrice {
+
+			data := DailyData{
+				StockCode:   stockCode,
+				TradeDate:   tradeDate,
+				OpenPrice:   openPrice,
+				HighPrice:   highPrice,
+				LowPrice:    lowPrice,
+				ClosePrice:  closePrice,
+				Volume:      volume,
+				DataSource:  "go_broker_crawler",
+				DataQuality: "corrected_daily",
+			}
+
+			result = append(result, data)
+		}
 	}
 
 	if len(result) == 0 {
@@ -169,6 +125,36 @@ func (p *Parser) ParseBrokerResponse(responseText, stockCode string) ([]DailyDat
 	}
 
 	return result, nil
+}
+
+// parseDate 解析日期（支援西元年格式: YYYY/MM/DD）
+func (p *Parser) parseDate(dateStr string) (time.Time, error) {
+	parts := strings.Split(dateStr, "/")
+	if len(parts) != 3 {
+		return time.Time{}, fmt.Errorf("invalid date format: %s", dateStr)
+	}
+
+	year, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid year: %s", parts[0])
+	}
+
+	month, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid month: %s", parts[1])
+	}
+
+	day, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid day: %s", parts[2])
+	}
+
+	// 驗證日期合法性
+	if year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31 {
+		return time.Time{}, fmt.Errorf("invalid date values: %s", dateStr)
+	}
+
+	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local), nil
 }
 
 // parseROCDate 解析民國日期

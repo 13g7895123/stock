@@ -16,68 +16,136 @@ func NewParser() *Parser {
 }
 
 // ParseBrokerResponse 解析券商回應
-// 格式: dates,dates,...,opens,opens,...,highs,highs,...,lows,lows,...,closes,closes,...,volumes,volumes,...
+// 使用與 Python 版本相同的兩步驟邏輯
+// 步驟1: 智能分離日期和數字
+// 步驟2: 根據日期數量動態切分數據
+// 格式: date1,date2,...,dateN,open1,open2,...,openN,high1,...,highN,low1,...,lowN,close1,...,closeN,volume1,...,volumeN
 func (p *Parser) ParseBrokerResponse(responseText, stockCode string) ([]DailyData, error) {
 	if responseText == "" {
 		return nil, fmt.Errorf("empty response")
 	}
 
-	// 分離不同類型的資料
+	// 分割原始資料
 	parts := strings.Split(responseText, ",")
 	if len(parts) == 0 {
 		return nil, fmt.Errorf("invalid response format")
 	}
 
-	// 計算每個部分的長度
-	// 假設格式: dates, opens, highs, lows, closes, volumes (6 個部分)
-	totalParts := len(parts)
-	if totalParts%6 != 0 {
-		return nil, fmt.Errorf("invalid data format: parts count %d is not divisible by 6", totalParts)
+	// 步驟 1: 智能分離日期和數字
+	var dates []string
+	var allNumbers []float64
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		// 檢查是否為日期格式 (YYYY/MM/DD)
+		if strings.Contains(part, "/") {
+			dateParts := strings.Split(part, "/")
+			if len(dateParts) == 3 {
+				// 驗證是否為合法的西元年日期
+				if year, err := strconv.Atoi(dateParts[0]); err == nil {
+					if month, err := strconv.Atoi(dateParts[1]); err == nil {
+						if day, err := strconv.Atoi(dateParts[2]); err == nil {
+							// 西元年範圍驗證 (1900-2100)
+							if year >= 1900 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31 {
+								dates = append(dates, part)
+								continue
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// 嘗試解析為數字
+		if num, err := strconv.ParseFloat(part, 64); err == nil {
+			allNumbers = append(allNumbers, num)
+		} else {
+			// 處理混合格式 "date price" 或 "price1 price2"
+			if strings.Contains(part, " ") {
+				spaceParts := strings.Fields(part)
+				for _, spacePart := range spaceParts {
+					// 檢查是否為日期
+					if strings.Contains(spacePart, "/") {
+						dateParts := strings.Split(spacePart, "/")
+						if len(dateParts) == 3 {
+							if year, err := strconv.Atoi(dateParts[0]); err == nil {
+								if year >= 1900 && year <= 2100 {
+									dates = append(dates, spacePart)
+									continue
+								}
+							}
+						}
+					}
+					// 嘗試解析為數字
+					if num, err := strconv.ParseFloat(spacePart, 64); err == nil {
+						allNumbers = append(allNumbers, num)
+					}
+				}
+			}
+		}
 	}
 
-	recordCount := totalParts / 6
+	if len(dates) == 0 {
+		return nil, fmt.Errorf("no valid dates found in response")
+	}
 
-	// 提取各部分
-	dates := parts[0:recordCount]
-	opens := parts[recordCount : recordCount*2]
-	highs := parts[recordCount*2 : recordCount*3]
-	lows := parts[recordCount*3 : recordCount*4]
-	closes := parts[recordCount*4 : recordCount*5]
-	volumes := parts[recordCount*5 : recordCount*6]
+	if len(allNumbers) == 0 {
+		return nil, fmt.Errorf("no valid numbers found in response")
+	}
+
+	// 步驟 2: 根據日期數量動態切分數據
+	numDates := len(dates)
+
+	// 驗證數據完整性（至少需要 OHLC 四個字段）
+	if len(allNumbers) < numDates*4 {
+		return nil, fmt.Errorf("insufficient data: need at least %d numbers for OHLC, got %d", numDates*4, len(allNumbers))
+	}
+
+	// 提取各部分數據
+	opens := allNumbers[0:numDates]
+	highs := allNumbers[numDates : numDates*2]
+	lows := allNumbers[numDates*2 : numDates*3]
+	closes := allNumbers[numDates*3 : numDates*4]
+
+	// Volume 可能不存在，使用容錯處理
+	var volumes []int64
+	if len(allNumbers) >= numDates*5 {
+		for i := 0; i < numDates; i++ {
+			idx := numDates*4 + i
+			if idx < len(allNumbers) {
+				volumes = append(volumes, int64(allNumbers[idx]))
+			} else {
+				volumes = append(volumes, 0)
+			}
+		}
+	} else {
+		// 如果沒有 volume 數據，填充 0
+		volumes = make([]int64, numDates)
+	}
 
 	// 組裝資料
 	var result []DailyData
 
-	for i := 0; i < recordCount; i++ {
-		// 解析日期（格式: 106/05/02 → 2017-05-02）
-		tradeDate, err := p.parseROCDate(dates[i])
+	for i := 0; i < numDates; i++ {
+		// 解析日期（格式: 2025/09/01）
+		tradeDate, err := p.parseDate(dates[i])
 		if err != nil {
 			continue // 跳過無效日期
 		}
 
-		// 解析價格和成交量
-		openPrice, err := strconv.ParseFloat(opens[i], 64)
-		if err != nil {
-			continue
-		}
+		// 驗證價格數據的有效性
+		openPrice := opens[i]
+		highPrice := highs[i]
+		lowPrice := lows[i]
+		closePrice := closes[i]
+		volume := volumes[i]
 
-		highPrice, err := strconv.ParseFloat(highs[i], 64)
-		if err != nil {
-			continue
-		}
-
-		lowPrice, err := strconv.ParseFloat(lows[i], 64)
-		if err != nil {
-			continue
-		}
-
-		closePrice, err := strconv.ParseFloat(closes[i], 64)
-		if err != nil {
-			continue
-		}
-
-		volume, err := strconv.ParseInt(volumes[i], 10, 64)
-		if err != nil {
+		// 基本驗證：價格必須為正
+		if openPrice <= 0 || highPrice <= 0 || lowPrice <= 0 || closePrice <= 0 || volume < 0 {
 			continue
 		}
 

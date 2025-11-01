@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stock-analysis/crawler-service/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // BatchInserter provides high-performance batch insert using PostgreSQL COPY protocol
@@ -44,8 +45,8 @@ func NewBatchInserter(databaseURL string, maxConns int, batchSize int) (*BatchIn
 	}
 
 	logger.Info("Batch inserter initialized",
-		"max_conns", maxConns,
-		"batch_size", batchSize,
+		zap.Int("max_conns", maxConns),
+		zap.Int("batch_size", batchSize),
 	)
 
 	return &BatchInserter{
@@ -61,7 +62,7 @@ func (b *BatchInserter) BatchInsertDailyData(ctx context.Context, data []StockDa
 	}
 
 	start := time.Now()
-	logger.Info("Starting batch insert", "record_count", len(data))
+	logger.Info("Starting batch insert", zap.Int("record_count", len(data)))
 
 	// Get a connection from the pool
 	conn, err := b.pool.Acquire(ctx)
@@ -70,15 +71,7 @@ func (b *BatchInserter) BatchInsertDailyData(ctx context.Context, data []StockDa
 	}
 	defer conn.Release()
 
-	// Define COPY command
-	copySQL := `
-		COPY stock_daily_data (
-			stock_code, trade_date, open_price, high_price, low_price, close_price,
-			volume, turnover, data_source, data_quality, is_validated, created_at
-		) FROM STDIN
-	`
-
-	// Start COPY transaction
+	// Start COPY transaction using PostgreSQL COPY protocol
 	rowsAffected, err := conn.Conn().CopyFrom(
 		ctx,
 		pgx.Identifier{"stock_daily_data"},
@@ -111,9 +104,9 @@ func (b *BatchInserter) BatchInsertDailyData(ctx context.Context, data []StockDa
 
 	duration := time.Since(start)
 	logger.Info("Batch insert completed",
-		"rows_inserted", rowsAffected,
-		"duration_ms", duration.Milliseconds(),
-		"rows_per_sec", float64(rowsAffected)/duration.Seconds(),
+		zap.Int64("rows_inserted", rowsAffected),
+		zap.Int64("duration_ms", duration.Milliseconds()),
+		zap.Float64("rows_per_sec", float64(rowsAffected)/duration.Seconds()),
 	)
 
 	return rowsAffected, nil
@@ -127,7 +120,7 @@ func (b *BatchInserter) BatchUpsertDailyData(ctx context.Context, data []StockDa
 	}
 
 	start := time.Now()
-	logger.Info("Starting batch upsert", "record_count", len(data))
+	logger.Info("Starting batch upsert", zap.Int("record_count", len(data)))
 
 	var totalAffected int64
 
@@ -149,9 +142,9 @@ func (b *BatchInserter) BatchUpsertDailyData(ctx context.Context, data []StockDa
 
 	duration := time.Since(start)
 	logger.Info("Batch upsert completed",
-		"rows_affected", totalAffected,
-		"duration_ms", duration.Milliseconds(),
-		"rows_per_sec", float64(totalAffected)/duration.Seconds(),
+		zap.Int64("rows_affected", totalAffected),
+		zap.Int64("duration_ms", duration.Milliseconds()),
+		zap.Float64("rows_per_sec", float64(totalAffected)/duration.Seconds()),
 	)
 
 	return totalAffected, nil
@@ -231,10 +224,10 @@ func (b *BatchInserter) BulkDelete(ctx context.Context, stockCode string, startD
 
 	rowsAffected := result.RowsAffected()
 	logger.Info("Bulk delete completed",
-		"stock_code", stockCode,
-		"start_date", startDate.Format("2006-01-02"),
-		"end_date", endDate.Format("2006-01-02"),
-		"rows_deleted", rowsAffected,
+		zap.String("stock_code", stockCode),
+		zap.String("start_date", startDate.Format("2006-01-02")),
+		zap.String("end_date", endDate.Format("2006-01-02")),
+		zap.Int64("rows_deleted", rowsAffected),
 	)
 
 	return rowsAffected, nil
@@ -255,10 +248,10 @@ func (b *BatchInserter) BulkUpdate(ctx context.Context, stockCode string, oldQua
 
 	rowsAffected := result.RowsAffected()
 	logger.Info("Bulk update completed",
-		"stock_code", stockCode,
-		"old_quality", oldQuality,
-		"new_quality", newQuality,
-		"rows_updated", rowsAffected,
+		zap.String("stock_code", stockCode),
+		zap.String("old_quality", oldQuality),
+		zap.String("new_quality", newQuality),
+		zap.Int64("rows_updated", rowsAffected),
 	)
 
 	return rowsAffected, nil
@@ -302,8 +295,8 @@ func (b *BatchInserter) BatchInsertWithRetry(ctx context.Context, data []StockDa
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
 			logger.Info("Retrying batch insert",
-				"attempt", attempt,
-				"max_retries", maxRetries,
+				zap.Int("attempt", attempt),
+				zap.Int("max_retries", maxRetries),
 			)
 			// Exponential backoff
 			backoff := time.Duration(attempt) * time.Second
@@ -317,8 +310,8 @@ func (b *BatchInserter) BatchInsertWithRetry(ctx context.Context, data []StockDa
 
 		lastErr = err
 		logger.Error("Batch insert failed",
-			"attempt", attempt,
-			"error", err,
+			zap.Int("attempt", attempt),
+			zap.Error(err),
 		)
 	}
 
@@ -332,8 +325,8 @@ func (b *BatchInserter) BatchUpsertWithRetry(ctx context.Context, data []StockDa
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
 			logger.Info("Retrying batch upsert",
-				"attempt", attempt,
-				"max_retries", maxRetries,
+				zap.Int("attempt", attempt),
+				zap.Int("max_retries", maxRetries),
 			)
 			// Exponential backoff
 			backoff := time.Duration(attempt) * time.Second
@@ -347,8 +340,8 @@ func (b *BatchInserter) BatchUpsertWithRetry(ctx context.Context, data []StockDa
 
 		lastErr = err
 		logger.Error("Batch upsert failed",
-			"attempt", attempt,
-			"error", err,
+			zap.Int("attempt", attempt),
+			zap.Error(err),
 		)
 	}
 

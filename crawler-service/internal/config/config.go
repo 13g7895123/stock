@@ -21,15 +21,34 @@ type ServerConfig struct {
 	ReadTimeout     time.Duration `mapstructure:"read_timeout"`
 	WriteTimeout    time.Duration `mapstructure:"write_timeout"`
 	ShutdownTimeout time.Duration `mapstructure:"shutdown_timeout"`
+	CORS            CORSConfig    `mapstructure:"cors"`
+}
+
+// CORSConfig CORS 配置
+type CORSConfig struct {
+	AllowedOrigins []string `mapstructure:"allowed_origins"`
+	AllowedMethods []string `mapstructure:"allowed_methods"`
+	AllowedHeaders []string `mapstructure:"allowed_headers"`
+	MaxAge         int      `mapstructure:"max_age"`
 }
 
 // DatabaseConfig 資料庫配置
 type DatabaseConfig struct {
-	URL            string        `mapstructure:"url"`
-	PoolSize       int           `mapstructure:"pool_size"`
-	MaxIdle        int           `mapstructure:"max_idle"`
-	MaxLifetime    time.Duration `mapstructure:"max_lifetime"`
-	ConnectTimeout time.Duration `mapstructure:"connect_timeout"`
+	URL             string        `mapstructure:"url"`
+	Host            string        `mapstructure:"host"`
+	Port            int           `mapstructure:"port"`
+	User            string        `mapstructure:"user"`
+	Password        string        `mapstructure:"password"`
+	Database        string        `mapstructure:"database"`
+	SSLMode         string        `mapstructure:"sslmode"`
+	PoolSize        int           `mapstructure:"pool_size"`
+	MaxIdle         int           `mapstructure:"max_idle"`
+	MaxOpenConns    int           `mapstructure:"max_open_conns"`
+	MaxIdleConns    int           `mapstructure:"max_idle_conns"`
+	MaxLifetime     time.Duration `mapstructure:"max_lifetime"`
+	ConnMaxLifetime time.Duration `mapstructure:"conn_max_lifetime"`
+	ConnMaxIdleTime time.Duration `mapstructure:"conn_max_idle_time"`
+	ConnectTimeout  time.Duration `mapstructure:"connect_timeout"`
 }
 
 // CrawlerConfig 爬蟲配置

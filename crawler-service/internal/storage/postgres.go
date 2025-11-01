@@ -8,6 +8,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq" // PostgreSQL driver
 	"github.com/stock-analysis/crawler-service/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // PostgresConfig holds database configuration
@@ -64,11 +65,11 @@ func NewPostgresDB(config *PostgresConfig) (*PostgresDB, error) {
 	}
 
 	logger.Info("Database connection established",
-		"host", config.Host,
-		"port", config.Port,
-		"database", config.Database,
-		"max_open_conns", config.MaxOpenConns,
-		"max_idle_conns", config.MaxIdleConns,
+		zap.String("host", config.Host),
+		zap.Int("port", config.Port),
+		zap.String("database", config.Database),
+		zap.Int("max_open_conns", config.MaxOpenConns),
+		zap.Int("max_idle_conns", config.MaxIdleConns),
 	)
 
 	return &PostgresDB{
@@ -99,8 +100,8 @@ func NewPostgresDBFromURL(url string, maxOpenConns, maxIdleConns int) (*Postgres
 	}
 
 	logger.Info("Database connection established from URL",
-		"max_open_conns", maxOpenConns,
-		"max_idle_conns", maxIdleConns,
+		zap.Int("max_open_conns", maxOpenConns),
+		zap.Int("max_idle_conns", maxIdleConns),
 	)
 
 	return &PostgresDB{
@@ -203,7 +204,7 @@ func (p *PostgresDB) WithTransaction(ctx context.Context, fn func(*sqlx.Tx) erro
 	// Execute the function
 	if err := fn(tx); err != nil {
 		if rbErr := tx.Rollback(); rbErr != nil {
-			logger.Error("Failed to rollback transaction", "error", rbErr)
+			logger.Error("Failed to rollback transaction", zap.Error(rbErr))
 		}
 		return err
 	}

@@ -2,6 +2,7 @@ package logger
 
 import (
 	"os"
+	"time"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -103,6 +104,16 @@ func Error(msg string, fields ...zap.Field) {
 // Fatal 記錄 fatal 等級日誌並退出程式
 func Fatal(msg string, fields ...zap.Field) {
 	log.Fatal(msg, fields...)
+}
+
+// Now 返回當前時間
+func Now() time.Time {
+	return time.Now()
+}
+
+// Since 返回從指定時間開始經過的時間
+func Since(t time.Time) time.Duration {
+	return time.Since(t)
 }
 
 // With 建立帶有額外欄位的 logger

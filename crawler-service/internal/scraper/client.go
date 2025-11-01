@@ -32,8 +32,20 @@ func NewHTTPClient(timeout time.Duration) *HTTPClient {
 	}
 }
 
-// Get 發送 GET 請求
+// Get 發送 GET 請求（自動處理重定向）
 func (c *HTTPClient) Get(ctx context.Context, url string) ([]byte, error) {
+	return c.getWithRedirect(ctx, url, 0)
+}
+
+// getWithRedirect 發送 GET 請求並處理重定向
+func (c *HTTPClient) getWithRedirect(ctx context.Context, url string, redirectCount int) ([]byte, error) {
+	const maxRedirects = 10
+
+	// 防止無限重定向
+	if redirectCount >= maxRedirects {
+		return nil, fmt.Errorf("too many redirects (max: %d)", maxRedirects)
+	}
+
 	req := fasthttp.AcquireRequest()
 	resp := fasthttp.AcquireResponse()
 	defer fasthttp.ReleaseRequest(req)
@@ -54,7 +66,32 @@ func (c *HTTPClient) Get(ctx context.Context, url string) ([]byte, error) {
 
 	// 檢查狀態碼
 	statusCode := resp.StatusCode()
-	if statusCode != 200 {
+
+	// 處理重定向 (3xx)
+	if statusCode >= 300 && statusCode < 400 {
+		location := string(resp.Header.Peek("Location"))
+		if location == "" {
+			return nil, fmt.Errorf("redirect status %d but no Location header", statusCode)
+		}
+
+		// 處理相對 URL
+		if location[0] == '/' {
+			// 解析原始 URL 獲取 scheme 和 host
+			uri := fasthttp.AcquireURI()
+			defer fasthttp.ReleaseURI(uri)
+			uri.Parse(nil, []byte(url))
+
+			scheme := string(uri.Scheme())
+			host := string(uri.Host())
+			location = fmt.Sprintf("%s://%s%s", scheme, host, location)
+		}
+
+		// 遞迴處理重定向
+		return c.getWithRedirect(ctx, location, redirectCount+1)
+	}
+
+	// 只接受 2xx 成功狀態碼
+	if statusCode < 200 || statusCode >= 300 {
 		return nil, fmt.Errorf("unexpected status code: %d", statusCode)
 	}
 

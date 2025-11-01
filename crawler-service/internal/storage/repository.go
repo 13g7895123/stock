@@ -8,6 +8,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/stock-analysis/crawler-service/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // Repository defines the interface for stock data operations
@@ -292,9 +293,9 @@ func (r *PostgresRepository) UpsertDailyDataBatch(ctx context.Context, data []St
 			result, err := stmt.ExecContext(ctx, &data[i])
 			if err != nil {
 				logger.Error("Failed to upsert record",
-					"stock_code", data[i].StockCode,
-					"trade_date", data[i].TradeDate,
-					"error", err,
+					zap.String("stock_code", data[i].StockCode),
+					zap.Time("trade_date", data[i].TradeDate),
+					zap.Error(err),
 				)
 				continue
 			}

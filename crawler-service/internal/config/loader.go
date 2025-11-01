@@ -72,8 +72,18 @@ func bindEnvVars(v *viper.Viper) {
 
 	// 資料庫
 	v.BindEnv("database.url", "DATABASE_URL")
+	v.BindEnv("database.host", "DB_HOST")
+	v.BindEnv("database.port", "DB_PORT")
+	v.BindEnv("database.user", "DB_USER")
+	v.BindEnv("database.password", "DB_PASSWORD")
+	v.BindEnv("database.database", "DB_NAME")
+	v.BindEnv("database.sslmode", "DB_SSLMODE")
 	v.BindEnv("database.pool_size", "DB_POOL_SIZE")
 	v.BindEnv("database.max_idle", "DB_MAX_IDLE")
+	v.BindEnv("database.max_open_conns", "DB_MAX_OPEN_CONNS")
+	v.BindEnv("database.max_idle_conns", "DB_MAX_IDLE_CONNS")
+	v.BindEnv("database.conn_max_lifetime", "DB_CONN_MAX_LIFETIME")
+	v.BindEnv("database.conn_max_idle_time", "DB_CONN_MAX_IDLE_TIME")
 
 	// 爬蟲
 	v.BindEnv("crawler.max_workers", "MAX_WORKERS")

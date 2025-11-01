@@ -61,6 +61,15 @@ export const useSettingsStore = defineStore('settings', () => {
       ]
     },
     {
+      name: 'Go 爬蟲服務',
+      icon: 'BoltIcon',
+      children: [
+        { name: '服務儀表板', href: '/crawler-service/dashboard' },
+        { name: '效能對比', href: '/crawler-service/performance' },
+        { name: 'Metrics 監控', href: '/crawler-service/metrics' }
+      ]
+    },
+    {
       name: '系統設定',
       icon: 'CogIcon',
       children: [

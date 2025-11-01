@@ -9,9 +9,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/stock-analysis/crawler-service/internal/api"
+	"github.com/stock-analysis/crawler-service/internal/api/middleware"
 	"github.com/stock-analysis/crawler-service/internal/config"
+	"github.com/stock-analysis/crawler-service/internal/metrics"
 	"github.com/stock-analysis/crawler-service/internal/scraper"
+	"github.com/stock-analysis/crawler-service/internal/service"
 	"github.com/stock-analysis/crawler-service/internal/storage"
+	"github.com/stock-analysis/crawler-service/internal/worker"
 	"github.com/stock-analysis/crawler-service/pkg/logger"
 	"go.uber.org/zap"
 )
@@ -57,30 +62,12 @@ func main() {
 		zap.Int("broker_count", len(cfg.Crawler.BrokerURLs)),
 	)
 
-	// 健康檢查所有券商
-	ctx := context.Background()
-	healthStatus := brokerManager.HealthCheckAll(ctx)
-	healthyCount := 0
-	for name, err := range healthStatus {
-		if err != nil {
-			logger.Warn("Broker health check failed",
-				zap.String("broker", name),
-				zap.Error(err),
-			)
-		} else {
-			healthyCount++
-			logger.Info("Broker is healthy",
-				zap.String("broker", name),
-			)
-		}
-	}
+	// 券商健康檢查
+	healthCtx, healthCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	brokerManager.HealthCheckAll(healthCtx)
+	healthCancel()
 
-	logger.Info("Health check completed",
-		zap.Int("healthy_brokers", healthyCount),
-		zap.Int("total_brokers", len(healthStatus)),
-	)
-
-	// 初始化資料庫連線
+	// 連線資料庫
 	logger.Info("Connecting to database...")
 	dbConfig := &storage.PostgresConfig{
 		Host:            cfg.Database.Host,
@@ -99,142 +86,123 @@ func main() {
 	if err != nil {
 		logger.Fatal("Failed to connect to database", zap.Error(err))
 	}
-	defer db.Close()
 
-	// 檢查資料庫健康狀態
-	dbHealthCtx, dbHealthCancel := context.WithTimeout(ctx, 5*time.Second)
-	defer dbHealthCancel()
-
-	if err := db.HealthCheck(dbHealthCtx); err != nil {
-		logger.Fatal("Database health check failed", zap.Error(err))
+	// 驗證資料庫連線
+	ctx := context.Background()
+	if err := db.Ping(ctx); err != nil {
+		logger.Fatal("Failed to ping database", zap.Error(err))
 	}
+
 	logger.Info("Database connection healthy")
 
-	// 初始化 Repository
-	repo := storage.NewPostgresRepository(db)
+	// 建立 Repository
+	repository := storage.NewPostgresRepository(db)
 	logger.Info("Repository initialized")
 
-	// 初始化批次插入器（用於高效能批次操作）
+	// 建立批次插入器
+	// 構建 database URL
+	dbURL := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		cfg.Database.User,
+		cfg.Database.Password,
+		cfg.Database.Host,
+		cfg.Database.Port,
+		cfg.Database.Database,
+		cfg.Database.SSLMode,
+	)
 	batchInserter, err := storage.NewBatchInserter(
-		cfg.Database.URL,
+		dbURL,
 		cfg.Database.MaxOpenConns,
 		cfg.Crawler.BatchSize,
 	)
 	if err != nil {
 		logger.Fatal("Failed to create batch inserter", zap.Error(err))
 	}
-	defer batchInserter.Close()
 	logger.Info("Batch inserter initialized",
 		zap.Int("batch_size", cfg.Crawler.BatchSize),
 	)
 
-	// TODO: 初始化 HTTP 服務器
-	// router := api.SetupRouter(cfg, brokerManager, repo, batchInserter)
-	// srv := &http.Server{
-	//     Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
-	//     Handler:      router,
-	//     ReadTimeout:  cfg.Server.ReadTimeout,
-	//     WriteTimeout: cfg.Server.WriteTimeout,
-	// }
+	// 初始化 Metrics
+	appMetrics := metrics.NewMetrics()
+	logger.Info("Metrics initialized")
 
-	// 示範：測試爬取並儲存到資料庫
-	testSymbol := "2330"
-	logger.Info("Testing fetch and save functionality", zap.String("symbol", testSymbol))
+	// 建立服務層
+	stockService := service.NewStockService(
+		brokerManager,
+		repository,
+		batchInserter,
+	)
+	logger.Info("Stock service initialized")
 
-	fetchCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
+	// 建立 Worker Pool
+	workerPool := worker.NewWorkerPool(
+		cfg.Crawler.MaxWorkers,
+		stockService,
+	)
+	workerPool.Start()
+	logger.Info("Worker pool started",
+		zap.Int("workers", cfg.Crawler.MaxWorkers),
+	)
 
-	result, err := brokerManager.FetchWithFailover(fetchCtx, testSymbol)
-	if err != nil {
-		logger.Error("Failed to fetch data", zap.Error(err))
-	} else {
-		logger.Info("Successfully fetched data",
-			zap.String("symbol", result.Symbol),
-			zap.String("source", result.Source),
-			zap.Int("records", result.RecordCount),
-			zap.Duration("duration", result.Duration),
-		)
+	// 建立批次服務
+	batchService := service.NewBatchService(workerPool)
+	logger.Info("Batch service initialized")
 
-		// 如果成功爬取到資料，嘗試儲存到資料庫
-		if len(result.Data) > 0 {
-			logger.Info("Attempting to save data to database",
-				zap.Int("record_count", len(result.Data)),
-			)
-
-			// 轉換為資料庫模型
-			dbRecords := make([]storage.StockDailyData, 0, len(result.Data))
-			for _, data := range result.Data {
-				dbRecord := storage.StockDailyData{
-					StockCode:   data.StockCode,
-					TradeDate:   data.TradeDate,
-					OpenPrice:   &data.OpenPrice,
-					HighPrice:   &data.HighPrice,
-					LowPrice:    &data.LowPrice,
-					ClosePrice:  &data.ClosePrice,
-					Volume:      &data.Volume,
-					DataSource:  data.DataSource,
-					DataQuality: &data.DataQuality,
-					IsValidated: false,
-				}
-
-				// 計算成交額（如果沒有的話）
-				if data.Volume > 0 && data.ClosePrice > 0 {
-					turnover := float64(data.Volume) * data.ClosePrice / 1000.0 // 以千元為單位
-					dbRecord.Turnover = &turnover
-				}
-
-				dbRecords = append(dbRecords, dbRecord)
-			}
-
-			// 使用批次插入器儲存（更高效）
-			saveCtx, saveCancel := context.WithTimeout(ctx, 30*time.Second)
-			defer saveCancel()
-
-			rowsAffected, err := batchInserter.BatchUpsertWithRetry(saveCtx, dbRecords, 3)
-			if err != nil {
-				logger.Error("Failed to save data to database", zap.Error(err))
-			} else {
-				logger.Info("Successfully saved data to database",
-					zap.Int64("rows_affected", rowsAffected),
-				)
-
-				// 驗證：從資料庫讀取最新資料
-				verifyCtx, verifyCancel := context.WithTimeout(ctx, 5*time.Second)
-				defer verifyCancel()
-
-				latestData, err := repo.GetLatestDailyData(verifyCtx, testSymbol)
-				if err != nil {
-					logger.Error("Failed to verify saved data", zap.Error(err))
-				} else if latestData != nil {
-					logger.Info("Verified data from database",
-						zap.String("stock_code", latestData.StockCode),
-						zap.Time("trade_date", latestData.TradeDate),
-						zap.Float64("close_price", *latestData.ClosePrice),
-					)
-				}
-			}
-		}
+	// 配置 CORS
+	corsConfig := &middleware.CORSConfig{
+		AllowedOrigins: cfg.Server.CORS.AllowedOrigins,
+		AllowedMethods: cfg.Server.CORS.AllowedMethods,
+		AllowedHeaders: cfg.Server.CORS.AllowedHeaders,
+		MaxAge:         cfg.Server.CORS.MaxAge,
 	}
 
-	// 示範 HTTP 服務器（簡化版）
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
-	})
+	if len(corsConfig.AllowedOrigins) == 0 {
+		corsConfig = middleware.DefaultCORSConfig()
+	}
 
-	mux.HandleFunc("/api/v1/stocks/", func(w http.ResponseWriter, r *http.Request) {
-		// 簡單示範
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message":"Stock API endpoint - implementation pending"}`))
-	})
+	// 創建路由器
+	routerConfig := &api.RouterConfig{
+		StockService:  stockService,
+		BatchService:  batchService,
+		BrokerManager: brokerManager,
+		Repository:    repository,
+		CORSConfig:    corsConfig,
+	}
 
+	handler := api.NewRouter(routerConfig)
+	logger.Info("Router initialized")
+
+	// 創建 HTTP 服務器
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
-		Handler:      mux,
+		Handler:      handler,
 		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,
+	}
+
+	// 啟動 Metrics 服務器（如果啟用）
+	if cfg.Metrics.Enabled {
+		metricsServer := &http.Server{
+			Addr:    fmt.Sprintf(":%d", cfg.Metrics.Port),
+			Handler: appMetrics.Handler(),
+		}
+
+		go func() {
+			logger.Info("Starting metrics server",
+				zap.Int("port", cfg.Metrics.Port),
+			)
+			if err := metricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				logger.Error("Metrics server error", zap.Error(err))
+			}
+		}()
+
+		// 在關閉時也停止 metrics 服務器
+		defer func() {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := metricsServer.Shutdown(shutdownCtx); err != nil {
+				logger.Error("Failed to shutdown metrics server", zap.Error(err))
+			}
+		}()
 	}
 
 	// 啟動 HTTP 服務器
@@ -252,15 +220,23 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logger.Info("Shutting down server...")
+	logger.Info("Shutting down gracefully...")
 
-	// 優雅關閉
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
-	defer shutdownCancel()
+	// 停止 Worker Pool
+	workerPool.Stop()
+
+	// 關閉 HTTP 服務器
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
+	defer cancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		logger.Error("Server forced to shutdown", zap.Error(err))
 	}
 
-	logger.Info("Server exited")
+	// 關閉資料庫連線
+	if err := db.Close(); err != nil {
+		logger.Error("Failed to close database", zap.Error(err))
+	}
+
+	logger.Info("Server stopped")
 }

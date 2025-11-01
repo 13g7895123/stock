@@ -1,19 +1,22 @@
 <template>
-  <button 
+  <button
     @click="handleClick"
     :disabled="loading || disabled"
     :class="[
-      'px-4 py-2 rounded-lg transition-colors flex items-center space-x-2',
+      'px-4 py-2 rounded-lg transition-colors flex items-center',
       'disabled:opacity-50 disabled:cursor-not-allowed',
       buttonClasses
     ]"
   >
-    <component 
-      :is="icon" 
-      :class="['w-4 h-4', loading ? 'animate-spin' : '']" 
+    <component
+      :is="icon"
+      :class="['w-4 h-4', loading ? 'animate-spin' : '']"
       v-if="icon"
     />
-    <span>{{ loading ? loadingText : text }}</span>
+    <!-- 支持 slot 或 text prop -->
+    <slot v-if="!loading && $slots.default"></slot>
+    <span v-else-if="!loading && text">{{ text }}</span>
+    <span v-else>{{ loadingText }}</span>
   </button>
 </template>
 
@@ -23,10 +26,10 @@ import { computed } from 'vue'
 // defineProps 和 defineEmits 是編譯器宏，不需要import
 
 const props = defineProps({
-  // 按鈕文字
+  // 按鈕文字（可選，如果使用 slot 則不需要）
   text: {
     type: String,
-    required: true
+    default: ''
   },
   // 載入中顯示的文字
   loadingText: {

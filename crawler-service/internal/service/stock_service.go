@@ -79,6 +79,10 @@ func (s *StockService) FetchStockDaily(ctx context.Context, symbol string, broke
 	// 轉換為儲存格式
 	dbRecords := make([]storage.StockDailyData, len(validRecords))
 	for i, record := range validRecords {
+		dataQuality := record.DataQuality
+		if dataQuality == "" {
+			dataQuality = "raw"
+		}
 		dbRecords[i] = storage.StockDailyData{
 			StockCode:    record.StockCode,
 			TradeDate:    record.TradeDate,
@@ -89,6 +93,7 @@ func (s *StockService) FetchStockDaily(ctx context.Context, symbol string, broke
 			Volume:       &record.Volume,
 			Turnover:     &record.Turnover,
 			DataSource:   result.Source,
+			DataQuality:  &dataQuality,
 			IsValidated:  true,
 		}
 	}

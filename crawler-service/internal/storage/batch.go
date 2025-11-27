@@ -158,27 +158,56 @@ func (b *BatchInserter) batchUpsertChunk(ctx context.Context, data []StockDailyD
 
 	// Build multi-row INSERT statement
 	valueStrings := make([]string, 0, len(data))
-	valueArgs := make([]interface{}, 0, len(data)*12)
+	valueArgs := make([]interface{}, 0, len(data)*11)
 
 	for i, d := range data {
-		offset := i * 12
+		offset := i * 11
 		valueStrings = append(valueStrings, fmt.Sprintf(
 			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, NOW())",
 			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6,
 			offset+7, offset+8, offset+9, offset+10, offset+11,
 		))
 
+		// Dereference pointers and provide default values for nil
+		var openPrice, highPrice, lowPrice, closePrice, turnover float64
+		var volume int64
+		var dataQuality string
+
+		if d.OpenPrice != nil {
+			openPrice = *d.OpenPrice
+		}
+		if d.HighPrice != nil {
+			highPrice = *d.HighPrice
+		}
+		if d.LowPrice != nil {
+			lowPrice = *d.LowPrice
+		}
+		if d.ClosePrice != nil {
+			closePrice = *d.ClosePrice
+		}
+		if d.Volume != nil {
+			volume = *d.Volume
+		}
+		if d.Turnover != nil {
+			turnover = *d.Turnover
+		}
+		if d.DataQuality != nil {
+			dataQuality = *d.DataQuality
+		} else {
+			dataQuality = "raw"
+		}
+
 		valueArgs = append(valueArgs,
 			d.StockCode,
 			d.TradeDate,
-			d.OpenPrice,
-			d.HighPrice,
-			d.LowPrice,
-			d.ClosePrice,
-			d.Volume,
-			d.Turnover,
+			openPrice,
+			highPrice,
+			lowPrice,
+			closePrice,
+			volume,
+			turnover,
 			d.DataSource,
-			d.DataQuality,
+			dataQuality,
 			d.IsValidated,
 		)
 	}

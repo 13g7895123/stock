@@ -39,7 +39,7 @@ async def get_selection_results(
             strategy_types = [s.strip() for s in strategies.split(',')]
 
             # 驗證策略類型
-            valid_strategies = ['perfect_bull', 'short_bull', 'bear']
+            valid_strategies = ['perfect_bull', 'short_bull', 'bear', 'all_stocks']
             for strategy in strategy_types:
                 if strategy not in valid_strategies:
                     raise HTTPException(

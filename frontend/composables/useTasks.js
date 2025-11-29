@@ -81,7 +81,8 @@ export const useTasks = () => {
     error.value = null
     
     try {
-      const result = await post('/tasks/manual/stock-crawl', symbols)
+      const payload = symbols ? { symbols } : {}
+      const result = await post('/tasks/manual/stock-crawl', payload)
       
       if (result.success) {
         // 重新獲取任務列表以顯示新任務

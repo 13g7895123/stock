@@ -1,222 +1,360 @@
 <template>
   <div class="space-y-6">
-    <!-- 系統狀態概覽 -->
+    <!-- 通知區域 -->
+    <div v-if="notification.show" :class="[
+      'p-4 rounded-lg border-l-4 flex items-center justify-between',
+      notification.type === 'success' ? 'bg-green-50 border-green-400 text-green-700 dark:bg-green-900 dark:text-green-200' :
+      notification.type === 'error' ? 'bg-red-50 border-red-400 text-red-700 dark:bg-red-900 dark:text-red-200' :
+      'bg-blue-50 border-blue-400 text-blue-700 dark:bg-blue-900 dark:text-blue-200'
+    ]">
+      <div class="flex items-center">
+        <span class="font-medium mr-2">
+          {{ notification.type === 'success' ? '✅' : notification.type === 'error' ? '❌' : 'ℹ️' }}
+        </span>
+        <span>{{ notification.message }}</span>
+      </div>
+      <button @click="notification.show = false" class="text-lg font-bold opacity-70 hover:opacity-100">
+        ×
+      </button>
+    </div>
+
+    <!-- 頁面標題 -->
     <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm p-6">
-      <div class="flex items-center justify-between mb-6">
-        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
-          系統概覽
-        </h2>
-        <div class="flex items-center space-x-2">
-          <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-          <span class="text-sm text-gray-600 dark:text-gray-300">系統運行中</span>
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900 dark:text-white">歷史資料管理</h1>
+          <p class="text-gray-600 dark:text-gray-300 mt-1">查看和管理系統中的股票歷史資料</p>
+        </div>
+        <div class="flex items-center space-x-3">
+          <ActionButton 
+            @click="handleRefreshStats"
+            :loading="loading"
+            :icon="ArrowPathIcon"
+            text="重新整理"
+            variant="secondary"
+          />
         </div>
       </div>
     </div>
 
-    <!-- 核心指標 -->
+    <!-- 資料統計總覽 -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      <div
-        v-for="metric in coreMetrics"
-        :key="metric.name"
-        class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm p-6 hover:shadow-md transition-shadow duration-200"
-      >
+      <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm p-6">
+        <div class="flex items-center">
+          <div class="flex-shrink-0">
+            <BuildingOfficeIcon class="w-8 h-8 text-blue-500" />
+          </div>
+          <div class="ml-4">
+            <div class="text-sm font-medium text-gray-500 dark:text-gray-400">總股票數</div>
+            <div class="text-2xl font-bold text-gray-900 dark:text-white">
+              {{ overallStats?.total_stocks || 0 }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm p-6">
+        <div class="flex items-center">
+          <div class="flex-shrink-0">
+            <ChartBarIcon class="w-8 h-8 text-green-500" />
+          </div>
+          <div class="ml-4">
+            <div class="text-sm font-medium text-gray-500 dark:text-gray-400">總資料筆數</div>
+            <div class="text-2xl font-bold text-gray-900 dark:text-white">
+              {{ formatNumber(overallStats?.total_records || 0) }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm p-6">
+        <div class="flex items-center">
+          <div class="flex-shrink-0">
+            <CalendarIcon class="w-8 h-8 text-purple-500" />
+          </div>
+          <div class="ml-4">
+            <div class="text-sm font-medium text-gray-500 dark:text-gray-400">最新資料日期</div>
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ overallStats?.latest_date || 'N/A' }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm p-6">
+        <div class="flex items-center">
+          <div class="flex-shrink-0">
+            <CheckCircleIcon class="w-8 h-8 text-orange-500" />
+          </div>
+          <div class="ml-4">
+            <div class="text-sm font-medium text-gray-500 dark:text-gray-400">資料完整度</div>
+            <div class="text-2xl font-bold text-green-600">
+              {{ overallStats?.completeness || 0 }}%
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 有資料的股票清單 -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm">
+      <!-- 標題區 -->
+      <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ metric.name }}</p>
-            <p class="text-2xl font-bold text-gray-900 dark:text-white mt-2">{{ metric.value }}</p>
-            <div class="flex items-center mt-2">
-              <component 
-                :is="metric.trend === 'up' ? ArrowUpIcon : ArrowDownIcon" 
-                :class="[
-                  'w-4 h-4',
-                  metric.trend === 'up' ? 'text-green-500' : 'text-red-500'
-                ]" 
-              />
-              <span 
-                :class="[
-                  'text-xs ml-1',
-                  metric.trend === 'up' ? 'text-green-600' : 'text-red-600'
-                ]"
-              >
-                {{ metric.change }}
-              </span>
-            </div>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">有資料的股票清單</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">系統中有歷史資料的股票清單及統計資訊</p>
           </div>
-          <div class="p-3 rounded-lg bg-primary-100 dark:bg-primary-900">
-            <component :is="getIcon(metric.icon)" class="w-6 h-6 text-primary-600 dark:text-primary-400" />
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 資料更新狀態與任務執行 -->
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-      <!-- 資料更新狀態 -->
-      <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm p-6">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-            資料更新狀態
-          </h3>
-          <button class="px-3 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition-colors">
-            手動更新
-          </button>
-        </div>
-        <div class="space-y-4">
-          <div
-            v-for="update in updateStatus"
-            :key="update.name"
-            class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
-          >
-            <div class="flex items-center space-x-3">
-              <div 
-                :class="[
-                  'w-3 h-3 rounded-full',
-                  update.status === 'completed' ? 'bg-green-500' : 
-                  update.status === 'running' ? 'bg-yellow-500 animate-pulse' : 'bg-gray-400'
-                ]"
-              ></div>
-              <div>
-                <p class="text-sm font-medium text-gray-900 dark:text-white">{{ update.name }}</p>
-                <p class="text-xs text-gray-500 dark:text-gray-400">{{ update.lastUpdate }}</p>
-              </div>
+          
+          <div class="flex items-center space-x-4">
+            <!-- 統計資訊 -->
+            <div class="text-sm text-gray-600 dark:text-gray-400">
+              <span class="font-medium">共 {{ stocksWithData.length }} 檔有資料股票</span>
+              （支援前端分頁與搜尋）
             </div>
-            <div class="text-right">
-              <p class="text-xs text-gray-500 dark:text-gray-400">{{ update.progress }}</p>
-              <div class="w-20 h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full mt-1">
-                <div 
-                  class="h-1.5 bg-primary-500 rounded-full transition-all duration-300"
-                  :style="{ width: update.progressPercent + '%' }"
-                ></div>
-              </div>
-            </div>
+            
+            <!-- 操作按鈕 -->
+            <ActionButton
+              @click="handleAnalyzeAndUpdate"
+              :loading="isAnalyzing"
+              :icon="MagnifyingGlassIcon"
+              text="分析並更新缺失資料"
+              variant="primary"
+              size="sm"
+              class="mr-2"
+            />
+            <ActionButton
+              @click="handleRefreshStocksList"
+              :loading="stocksListLoading"
+              :icon="ArrowPathIcon"
+              text="重新整理"
+              variant="secondary"
+              size="sm"
+            />
           </div>
         </div>
       </div>
 
-      <!-- 今日選股結果 -->
-      <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm p-6">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-            今日推薦股票
-          </h3>
-          <NuxtLink 
-            to="/screening/recommendations"
-            class="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400"
-          >
-            查看全部
-          </NuxtLink>
-        </div>
-        <div class="space-y-3">
-          <div
-            v-for="stock in recommendedStocks"
-            :key="stock.code"
-            class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer"
-          >
-            <div>
-              <p class="text-sm font-semibold text-gray-900 dark:text-white">
-                {{ stock.code }} {{ stock.name }}
-              </p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
-                評分: {{ stock.score }}/100
-              </p>
-            </div>
-            <div class="text-right">
-              <p class="text-sm font-medium text-gray-900 dark:text-white">
-                ${{ stock.price }}
-              </p>
-              <p 
-                :class="[
-                  'text-xs',
-                  stock.change >= 0 ? 'text-green-600' : 'text-red-600'
-                ]"
-              >
-                {{ stock.change >= 0 ? '+' : '' }}{{ stock.change }}%
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 系統活動日誌與效能圖表 -->
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-      <!-- 效能監控圖表 -->
-      <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          系統效能監控
-        </h3>
-        <div class="h-64 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-700 dark:to-gray-600 rounded-lg flex items-center justify-center">
-          <div class="text-center">
-            <PresentationChartLineIcon class="w-12 h-12 text-gray-400 mx-auto mb-2" />
-            <p class="text-gray-500 dark:text-gray-400 text-sm">效能圖表區域</p>
-            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">(可整合Chart.js或其他圖表庫)</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- 系統活動日誌 -->
-      <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm p-6">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-            系統活動
-          </h3>
-          <NuxtLink 
-            to="/tasks/logs"
-            class="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400"
-          >
-            查看詳細日誌
-          </NuxtLink>
-        </div>
-        <div class="space-y-4 max-h-64 overflow-y-auto">
-          <div
-            v-for="activity in systemActivities"
-            :key="activity.id"
-            class="flex items-start space-x-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
-          >
-            <div 
-              :class="[
-                'w-2 h-2 mt-2 rounded-full flex-shrink-0',
-                activity.type === 'success' ? 'bg-green-500' :
-                activity.type === 'warning' ? 'bg-yellow-500' :
-                activity.type === 'error' ? 'bg-red-500' : 'bg-blue-500'
-              ]"
-            ></div>
-            <div class="flex-1 min-w-0">
-              <p class="text-sm text-gray-900 dark:text-white">{{ activity.message }}</p>
-              <div class="flex items-center mt-1 space-x-2">
-                <p class="text-xs text-gray-500 dark:text-gray-400">{{ activity.time }}</p>
-                <span 
-                  v-if="activity.duration"
-                  class="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 rounded-full"
-                >
-                  {{ activity.duration }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 快速操作面板 -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm p-6">
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-        快速操作
-      </h3>
-      <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        <button
-          v-for="action in quickActions"
-          :key="action.name"
-          class="flex flex-col items-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors group"
-        >
-          <component 
-            :is="getIcon(action.icon)" 
-            class="w-8 h-8 text-gray-600 dark:text-gray-400 group-hover:text-primary-600 dark:group-hover:text-primary-400 mb-2" 
-          />
-          <span class="text-xs font-medium text-gray-700 dark:text-gray-300 text-center">
-            {{ action.name }}
+      <!-- 更新進度顯示 -->
+      <div v-if="isAnalyzing && updateProgress.total > 0" class="px-6 py-4 bg-blue-50 dark:bg-blue-900/20">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm text-blue-700 dark:text-blue-300">
+            正在更新股票資料 ({{ updateProgress.current }}/{{ updateProgress.total }})
           </span>
-        </button>
+          <span class="text-sm text-blue-600 dark:text-blue-400">
+            {{ updateProgress.stockCode }}
+          </span>
+        </div>
+        <div class="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+          <div
+            class="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all duration-300"
+            :style="{ width: `${(updateProgress.current / updateProgress.total) * 100}%` }"
+          ></div>
+        </div>
+        <div v-if="updateProgress.failedStocks.length > 0" class="mt-2 text-xs text-red-600 dark:text-red-400">
+          失敗股票: {{ updateProgress.failedStocks.join(', ') }}
+        </div>
+      </div>
+
+      <!-- 股票清單內容 -->
+      <CollapsibleStockTable
+        title=""
+        description=""
+        :data="stocksWithData"
+        :loading="stocksListLoading"
+        :initially-expanded="true"
+        :show-header="false"
+        @view-details="viewStockHistory"
+        @update-data="updateStockData"
+        @refresh="() => handleRefreshStocksList(false)"
+      />
+    </div>
+
+    <!-- 資料查詢區域 -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm p-6">
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">資料查詢</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <!-- 股票代碼 -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">股票代碼</label>
+          <input
+            v-model="queryParams.symbol"
+            type="text"
+            placeholder="如: 2330"
+            maxlength="4"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          />
+        </div>
+
+        <!-- 開始日期 -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">開始日期</label>
+          <input
+            v-model="queryParams.start_date"
+            type="date"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          />
+        </div>
+
+        <!-- 結束日期 -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">結束日期</label>
+          <input
+            v-model="queryParams.end_date"
+            type="date"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          />
+        </div>
+
+        <!-- 筆數限制 -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">顯示筆數</label>
+          <select
+            v-model="queryParams.limit"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          >
+            <option value="10">10 筆</option>
+            <option value="20">20 筆</option>
+            <option value="50">50 筆</option>
+            <option value="100">100 筆</option>
+          </select>
+        </div>
+
+        <!-- 查詢按鈕 -->
+        <div class="flex items-end">
+          <ActionButton 
+            @click="handleQueryData"
+            :loading="loading"
+            :disabled="!queryParams.symbol"
+            :icon="MagnifyingGlassIcon"
+            text="查詢資料"
+            loading-text="查詢中..."
+            variant="primary"
+            class="w-full"
+          />
+        </div>
+      </div>
+
+      <!-- 快速操作按鈕 -->
+      <div class="flex flex-wrap gap-3 mb-6">
+        <ActionButton 
+          @click="setTodayDates"
+          :icon="CalendarIcon"
+          text="今日資料"
+          variant="secondary"
+          size="sm"
+        />
+        <ActionButton 
+          @click="setLastWeekDates"
+          :icon="CalendarIcon"
+          text="近一週"
+          variant="secondary"
+          size="sm"
+        />
+        <ActionButton 
+          @click="setLastMonthDates"
+          :icon="CalendarIcon"
+          text="近一月"
+          variant="secondary"
+          size="sm"
+        />
+        <ActionButton 
+          @click="clearDates"
+          :icon="XCircleIcon"
+          text="清除日期"
+          variant="secondary"
+          size="sm"
+        />
+      </div>
+
+      <!-- 查詢結果 -->
+      <div v-if="historyData.length > 0" class="overflow-x-auto">
+        <div class="mb-4 flex items-center justify-between">
+          <div class="text-sm text-gray-600 dark:text-gray-400">
+            找到 {{ pagination.total_records }} 筆資料，顯示第 {{ pagination.current_page }} 頁
+          </div>
+          <ActionButton 
+            @click="exportData"
+            :icon="ArrowDownTrayIcon"
+            text="匯出CSV"
+            variant="secondary"
+            size="sm"
+          />
+        </div>
+        
+        <table class="w-full border-collapse">
+          <thead class="bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left text-sm font-medium text-gray-500 dark:text-gray-300">交易日期</th>
+              <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-sm font-medium text-gray-500 dark:text-gray-300">開盤價</th>
+              <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-sm font-medium text-gray-500 dark:text-gray-300">最高價</th>
+              <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-sm font-medium text-gray-500 dark:text-gray-300">最低價</th>
+              <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-sm font-medium text-gray-500 dark:text-gray-300">收盤價</th>
+              <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-sm font-medium text-gray-500 dark:text-gray-300">成交量</th>
+              <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-sm font-medium text-gray-500 dark:text-gray-300">漲跌幅</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="record in historyData"
+              :key="record.trade_date"
+              class="hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              <td class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm">{{ formatDate(record.trade_date) }}</td>
+              <td class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm text-right">${{ record.open_price }}</td>
+              <td class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm text-right">${{ record.high_price }}</td>
+              <td class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm text-right">${{ record.low_price }}</td>
+              <td class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm text-right font-medium">${{ record.close_price }}</td>
+              <td class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm text-right">{{ formatVolume(record.volume) }}</td>
+              <td class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm text-right">
+                <span 
+                  v-if="record.price_change"
+                  :class="[
+                    'font-medium',
+                    record.price_change >= 0 ? 'text-green-600' : 'text-red-600'
+                  ]"
+                >
+                  {{ record.price_change >= 0 ? '+' : '' }}{{ record.price_change }}%
+                </span>
+                <span v-else class="text-gray-400">-</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- 分頁 -->
+        <div v-if="pagination.total_pages > 1" class="mt-4 flex items-center justify-between">
+          <div class="text-sm text-gray-600 dark:text-gray-400">
+            第 {{ pagination.current_page }} / {{ pagination.total_pages }} 頁
+          </div>
+          <div class="flex items-center space-x-2">
+            <ActionButton 
+              @click="handlePrevPage"
+              :disabled="pagination.current_page <= 1 || loading"
+              :icon="ChevronLeftIcon"
+              text="上一頁"
+              variant="secondary"
+              size="sm"
+            />
+            <ActionButton 
+              @click="handleNextPage"
+              :disabled="pagination.current_page >= pagination.total_pages || loading"
+              :icon="ChevronRightIcon"
+              text="下一頁"
+              variant="secondary"
+              size="sm"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- 無資料提示 -->
+      <div v-else-if="hasSearched" class="text-center py-12">
+        <ChartBarIcon class="w-16 h-16 mx-auto text-gray-400 mb-4" />
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">查無資料</h3>
+        <p class="text-gray-600 dark:text-gray-400">
+          {{ queryParams.symbol ? `找不到股票代碼 ${queryParams.symbol} 的歷史資料` : '請輸入股票代碼進行查詢' }}
+        </p>
       </div>
     </div>
   </div>
@@ -224,148 +362,486 @@
 
 <script setup>
 import {
-  BuildingOfficeIcon,
-  CircleStackIcon,
-  PresentationChartLineIcon,
-  StarIcon,
-  ArrowUpIcon,
-  ArrowDownIcon,
-  PlayIcon,
-  StopIcon,
   ArrowPathIcon,
-  Cog6ToothIcon,
+  BuildingOfficeIcon,
   ChartBarIcon,
-  ClockIcon
+  CalendarIcon,
+  CheckCircleIcon,
+  MagnifyingGlassIcon,
+  ArrowDownTrayIcon,
+  XCircleIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon
 } from '@heroicons/vue/24/outline'
+import CollapsibleStockTable from '@/components/CollapsibleStockTable.vue'
 
 // 設定頁面標題
 definePageMeta({
-  title: '系統概覽'
+  title: '歷史資料管理'
 })
 
-// 核心指標數據
-const coreMetrics = ref([
-  { 
-    name: '股票總數', 
-    value: '1,847', 
-    change: '+23',
-    trend: 'up',
-    icon: 'BuildingOfficeIcon' 
-  },
-  { 
-    name: '資料完整度', 
-    value: '98.7%', 
-    change: '+1.2%',
-    trend: 'up',
-    icon: 'CircleStackIcon' 
-  },
-  { 
-    name: '推薦股票', 
-    value: '156', 
-    change: '-5',
-    trend: 'down',
-    icon: 'StarIcon' 
-  },
-  { 
-    name: '系統負載', 
-    value: '23%', 
-    change: '-8%',
-    trend: 'down',
-    icon: 'ChartBarIcon' 
+// 使用組合式函數
+const { 
+  loading, 
+  error, 
+  getStockHistory,
+  getOverallStats,
+  getStocksWithData
+} = useStocks()
+
+const { get } = useApi()
+
+// 響應式資料
+const overallStats = ref(null)
+const historyData = ref([])
+const hasSearched = ref(false)
+const pagination = ref({
+  current_page: 1,
+  total_pages: 1,
+  total_records: 0
+})
+
+// 股票清單相關資料
+const stocksWithData = ref([])
+const stocksListLoading = ref(false)
+const isAnalyzing = ref(false)
+const updateProgress = ref({
+  total: 0,
+  current: 0,
+  stockCode: '',
+  failedStocks: []
+})
+const stocksPagination = ref({
+  page: 1,
+  limit: 50,
+  total_pages: 1,
+  total_stocks: 0,
+  has_next: false,
+  has_previous: false
+})
+const stocksQueryParams = ref({
+  page: 1,
+  limit: 50,  // 預設載入更多資料
+  sort_by: 'stock_code',  // 預設按股票代號排序
+  sort_order: 'asc'
+})
+
+const queryParams = ref({
+  symbol: '',
+  start_date: '',
+  end_date: '',
+  limit: 20,
+  page: 1
+})
+
+// 通知系統
+const notification = ref({
+  show: false,
+  type: 'info',
+  message: ''
+})
+
+// 顯示通知
+const showNotification = (type, message) => {
+  notification.value = {
+    show: true,
+    type,
+    message
   }
-])
-
-// 資料更新狀態
-const updateStatus = ref([
-  {
-    name: '股票清單更新',
-    status: 'completed',
-    lastUpdate: '2小時前',
-    progress: '完成',
-    progressPercent: 100
-  },
-  {
-    name: '歷史資料同步',
-    status: 'running',
-    lastUpdate: '進行中',
-    progress: '67%',
-    progressPercent: 67
-  },
-  {
-    name: '均線計算',
-    status: 'pending',
-    lastUpdate: '等待中',
-    progress: '待執行',
-    progressPercent: 0
-  }
-])
-
-// 推薦股票
-const recommendedStocks = ref([
-  { code: '2330', name: '台積電', price: '512.00', change: 2.1, score: 85 },
-  { code: '2317', name: '鴻海', price: '106.50', change: -1.2, score: 78 },
-  { code: '2454', name: '聯發科', price: '789.00', change: 3.8, score: 82 },
-  { code: '1301', name: '台塑', price: '87.20', change: 1.5, score: 75 }
-])
-
-// 系統活動
-const systemActivities = ref([
-  {
-    id: 1,
-    message: '股票清單更新完成，新增23檔股票',
-    time: '2分鐘前',
-    type: 'success',
-    duration: '45秒'
-  },
-  {
-    id: 2,
-    message: '技術分析計算完成，發現156檔推薦股票',
-    time: '15分鐘前',
-    type: 'success',
-    duration: '3分鐘'
-  },
-  {
-    id: 3,
-    message: '資料源連接異常，正在重試',
-    time: '1小時前',
-    type: 'warning'
-  },
-  {
-    id: 4,
-    message: '定時任務啟動：每日資料更新',
-    time: '2小時前',
-    type: 'info',
-    duration: '120分鐘'
-  }
-])
-
-// 快速操作
-const quickActions = ref([
-  { name: '更新股票', icon: 'ArrowPathIcon' },
-  { name: '執行分析', icon: 'PlayIcon' },
-  { name: '停止任務', icon: 'StopIcon' },
-  { name: '系統設定', icon: 'Cog6ToothIcon' },
-  { name: '查看報告', icon: 'ChartBarIcon' },
-  { name: '排程管理', icon: 'ClockIcon' }
-])
-
-// 圖示組件映射
-const iconComponents = {
-  BuildingOfficeIcon,
-  CircleStackIcon,
-  PresentationChartLineIcon,
-  StarIcon,
-  ArrowUpIcon,
-  ArrowDownIcon,
-  PlayIcon,
-  StopIcon,
-  ArrowPathIcon,
-  Cog6ToothIcon,
-  ChartBarIcon,
-  ClockIcon
+  
+  setTimeout(() => {
+    notification.value.show = false
+  }, 5000)
 }
 
-const getIcon = (iconName) => {
-  return iconComponents[iconName] || ChartBarIcon
+// 計算可見的分頁按鈕
+const visibleStockPages = computed(() => {
+  const pages = []
+  const total = stocksPagination.value.total_pages
+  const current = stocksPagination.value.page
+  
+  if (total <= 7) {
+    // 如果總頁數少於等於7頁，顯示所有頁面
+    for (let i = 1; i <= total; i++) {
+      pages.push(i)
+    }
+  } else {
+    // 顯示當前頁面前後各2頁
+    let start = Math.max(1, current - 2)
+    let end = Math.min(total, current + 2)
+    
+    // 確保至少顯示5頁
+    if (end - start < 4) {
+      if (start === 1) {
+        end = Math.min(total, start + 4)
+      } else {
+        start = Math.max(1, end - 4)
+      }
+    }
+    
+    for (let i = start; i <= end; i++) {
+      pages.push(i)
+    }
+  }
+  
+  return pages
+})
+
+// 工具函數
+const formatNumber = (num) => {
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + 'M'
+  } else if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'K'
+  }
+  return num?.toString() || '0'
 }
+
+const formatDate = (dateString) => {
+  return new Date(dateString).toLocaleDateString('zh-TW')
+}
+
+const formatVolume = (volume) => {
+  if (volume >= 1000000) {
+    return (volume / 1000000).toFixed(1) + 'M'
+  } else if (volume >= 1000) {
+    return (volume / 1000).toFixed(1) + 'K'
+  }
+  return volume?.toString() || '0'
+}
+
+const getCurrentDate = () => {
+  return new Date().toISOString().split('T')[0]
+}
+
+// 日期設定函數
+const setTodayDates = () => {
+  const today = getCurrentDate()
+  queryParams.value.start_date = today
+  queryParams.value.end_date = today
+}
+
+const setLastWeekDates = () => {
+  const today = new Date()
+  const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+  queryParams.value.start_date = lastWeek.toISOString().split('T')[0]
+  queryParams.value.end_date = getCurrentDate()
+}
+
+const setLastMonthDates = () => {
+  const today = new Date()
+  const lastMonth = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
+  queryParams.value.start_date = lastMonth.toISOString().split('T')[0]
+  queryParams.value.end_date = getCurrentDate()
+}
+
+const clearDates = () => {
+  queryParams.value.start_date = ''
+  queryParams.value.end_date = ''
+}
+
+// API處理函數
+const handleRefreshStats = async () => {
+  const result = await getOverallStats()
+  if (result) {
+    overallStats.value = result
+    showNotification('success', '成功重新整理統計資訊')
+  } else {
+    showNotification('error', error.value || '重新整理統計資訊失敗')
+  }
+}
+
+const handleQueryData = async () => {
+  if (!queryParams.value.symbol) {
+    showNotification('error', '請輸入股票代碼')
+    return
+  }
+
+  hasSearched.value = true
+  const params = { ...queryParams.value }
+  
+  // 移除空值
+  Object.keys(params).forEach(key => {
+    if (params[key] === '') {
+      delete params[key]
+    }
+  })
+
+  const result = await getStockHistory(params.symbol, params)
+  
+  if (result) {
+    historyData.value = result.data || []
+    pagination.value = result.pagination || {
+      current_page: 1,
+      total_pages: 1,
+      total_records: 0
+    }
+    
+    if (historyData.value.length > 0) {
+      showNotification('success', `成功取得 ${pagination.value.total_records} 筆歷史資料`)
+    } else {
+      showNotification('info', '查無符合條件的資料')
+    }
+  } else {
+    showNotification('error', error.value || '查詢歷史資料失敗')
+  }
+}
+
+const handlePrevPage = () => {
+  if (queryParams.value.page > 1) {
+    queryParams.value.page--
+    handleQueryData()
+  }
+}
+
+const handleNextPage = () => {
+  if (queryParams.value.page < pagination.value.total_pages) {
+    queryParams.value.page++
+    handleQueryData()
+  }
+}
+
+const exportData = () => {
+  if (historyData.value.length === 0) {
+    showNotification('error', '無資料可匯出')
+    return
+  }
+
+  const csv = [
+    ['交易日期', '開盤價', '最高價', '最低價', '收盤價', '成交量', '漲跌幅'],
+    ...historyData.value.map(record => [
+      record.trade_date,
+      record.open_price,
+      record.high_price,
+      record.low_price,
+      record.close_price,
+      record.volume,
+      record.price_change || ''
+    ])
+  ].map(row => row.join(',')).join('\n')
+
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `${queryParams.value.symbol}_歷史資料_${getCurrentDate()}.csv`
+  link.click()
+  
+  showNotification('success', 'CSV檔案已下載')
+}
+
+// 股票清單處理函數
+const handleRefreshStocksList = async (showMessage = true) => {
+  stocksListLoading.value = true
+  // 移除分頁參數，一次性載入所有資料
+  const params = { limit: 9999 } // 獲取所有股票資料
+  const result = await getStocksWithData(params)
+
+  if (result) {
+    // result 現在直接是 API 回應資料，包含 stocks 屬性
+    stocksWithData.value = result.stocks || []
+
+    if (showMessage && stocksWithData.value.length > 0) {
+      showNotification('success', `載入 ${stocksWithData.value.length} 檔有資料股票`)
+    } else if (showMessage) {
+      showNotification('info', '系統中目前沒有任何股票的歷史資料')
+    }
+  } else {
+    if (showMessage) {
+      showNotification('error', error.value || '載入股票清單失敗')
+    }
+  }
+
+  stocksListLoading.value = false
+}
+
+
+const viewStockHistory = (stockCode) => {
+  // 將選中的股票代號填入查詢表單並自動查詢
+  queryParams.value.symbol = stockCode
+  handleQueryData()
+  
+  // 滾動到查詢結果區域
+  nextTick(() => {
+    const querySection = document.querySelector('.bg-white.dark\\:bg-gray-800:nth-child(4)')
+    if (querySection) {
+      querySection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  })
+}
+
+const updateStockData = async (stockCode) => {
+  try {
+    showNotification('info', `正在更新股票 ${stockCode} 的資料...`)
+
+    // 調用資料更新API (使用GET方法)
+    const res = await get(`/data/daily/${stockCode}`)
+
+    if (res.success) {
+      const response = res.data
+      if (response.status === 'success') {
+        const message = `股票 ${stockCode} 資料更新成功 (處理 ${response.records_processed} 筆，新增 ${response.records_created} 筆，更新 ${response.records_updated} 筆)`
+        showNotification('success', message)
+        // 重新整理股票清單和統計資訊
+        await handleRefreshStocksList()
+        await handleRefreshStats()
+      } else if (response.status === 'skipped') {
+        const message = `股票 ${stockCode} 資料已是最新 (最新日期: ${response.latest_date})`
+        showNotification('info', message)
+      } else {
+        throw new Error(response.message || '更新失敗')
+      }
+    } else {
+      throw new Error(res.error || '更新失敗')
+    }
+  } catch (error) {
+    console.error('更新股票資料錯誤:', error)
+    const errorMessage = error.message || '更新失敗'
+    showNotification('error', `更新股票 ${stockCode} 資料失敗: ${errorMessage}`)
+  }
+}
+
+// 分析並更新缺少最新資料的股票
+const handleAnalyzeAndUpdate = async () => {
+  if (isAnalyzing.value) {
+    showNotification('info', '正在分析中，請稍候...')
+    return
+  }
+
+  isAnalyzing.value = true
+  updateProgress.value = {
+    total: 0,
+    current: 0,
+    stockCode: '',
+    failedStocks: []
+  }
+
+  try {
+    showNotification('info', '正在分析股票資料狀況...')
+
+    // 取得所有股票的最新日期
+    const today = new Date()
+    const latestTradingDate = getLatestTradingDate() // 取得最新的交易日（排除週末）
+
+    // 分析哪些股票沒有最新資料
+    const stocksNeedUpdate = []
+
+    for (const stock of stocksWithData.value) {
+      const stockLatestDate = new Date(stock.latest_date)
+      const daysDiff = Math.floor((latestTradingDate - stockLatestDate) / (1000 * 60 * 60 * 24))
+
+      // 如果資料落後超過1天（考慮週末），就需要更新
+      if (daysDiff > 0) {
+        stocksNeedUpdate.push({
+          stock_code: stock.stock_code,
+          stock_name: stock.stock_name,
+          latest_date: stock.latest_date,
+          days_behind: daysDiff
+        })
+      }
+    }
+
+    if (stocksNeedUpdate.length === 0) {
+      showNotification('success', '所有股票資料都是最新的！')
+      isAnalyzing.value = false
+      return
+    }
+
+    // 顯示分析結果
+    const confirmUpdate = confirm(
+      `發現 ${stocksNeedUpdate.length} 檔股票需要更新資料。\n` +
+      `最多落後天數：${Math.max(...stocksNeedUpdate.map(s => s.days_behind))} 天\n\n` +
+      `是否要開始更新這些股票？`
+    )
+
+    if (!confirmUpdate) {
+      showNotification('info', '已取消更新')
+      isAnalyzing.value = false
+      return
+    }
+
+    // 開始逐一更新
+    updateProgress.value.total = stocksNeedUpdate.length
+    showNotification('info', `開始更新 ${stocksNeedUpdate.length} 檔股票的資料...`)
+
+    for (let i = 0; i < stocksNeedUpdate.length; i++) {
+      const stock = stocksNeedUpdate[i]
+      updateProgress.value.current = i + 1
+      updateProgress.value.stockCode = stock.stock_code
+
+      try {
+        // 調用更新 API
+        const res = await get(`/data/daily/${stock.stock_code}`)
+
+        if (res.success) {
+          console.log(`✅ ${stock.stock_code} 更新成功`)
+        } else {
+          console.warn(`⚠️ ${stock.stock_code} 更新狀態: ${res.error}`)
+        }
+
+        // 避免請求過快，加入小延遲
+        await new Promise(resolve => setTimeout(resolve, 500))
+
+      } catch (error) {
+        console.error(`❌ ${stock.stock_code} 更新失敗:`, error)
+        updateProgress.value.failedStocks.push(stock.stock_code)
+      }
+    }
+
+    // 更新完成後重新整理
+    await handleRefreshStocksList(false)
+    await handleRefreshStats()
+
+    // 顯示結果
+    const successCount = updateProgress.value.total - updateProgress.value.failedStocks.length
+    if (updateProgress.value.failedStocks.length === 0) {
+      showNotification('success', `成功更新 ${successCount} 檔股票的資料！`)
+    } else {
+      showNotification('warning',
+        `更新完成：成功 ${successCount} 檔，失敗 ${updateProgress.value.failedStocks.length} 檔\n` +
+        `失敗股票：${updateProgress.value.failedStocks.join(', ')}`
+      )
+    }
+
+  } catch (error) {
+    console.error('分析更新過程發生錯誤:', error)
+    showNotification('error', '分析更新過程發生錯誤，請稍後再試')
+  } finally {
+    isAnalyzing.value = false
+  }
+}
+
+// 取得最新交易日（排除週末）
+const getLatestTradingDate = () => {
+  const today = new Date()
+  const day = today.getDay()
+
+  // 如果是週日(0)，返回週五
+  if (day === 0) {
+    today.setDate(today.getDate() - 2)
+  }
+  // 如果是週六(6)，返回週五
+  else if (day === 6) {
+    today.setDate(today.getDate() - 1)
+  }
+
+  return today
+}
+
+// 監聽查詢參數變化
+watch(() => queryParams.value.symbol, (newSymbol) => {
+  // 清除之前的資料
+  historyData.value = []
+  hasSearched.value = false
+  queryParams.value.page = 1
+})
+
+// 初始化
+onMounted(async () => {
+  // 設定預設日期為今天
+  setTodayDates()
+  // 獲取系統統計
+  await handleRefreshStats()
+  // 載入有資料的股票清單
+  await handleRefreshStocksList()
+})
 </script>

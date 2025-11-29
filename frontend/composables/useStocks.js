@@ -39,7 +39,7 @@ export const useStocks = () => {
     error.value = null
     
     try {
-      const result = await post('/sync/stocks')
+      const result = await post('/sync/stocks/sync')
       
       if (result.success) {
         return result.data
@@ -159,14 +159,14 @@ export const useStocks = () => {
   }
 
   /**
-   * 更新單一股票歷史資料（爬取日線資料）
+   * 更新單一股票歷史資料（觸發更新任務）
    */
   const updateStockData = async (symbol) => {
     loading.value = true
     error.value = null
     
     try {
-      const result = await get(`/data/daily/${symbol}`)
+      const result = await post(`/stocks/${symbol}/update`)
       
       if (result.success) {
         return result.data
@@ -188,8 +188,8 @@ export const useStocks = () => {
     error.value = null
     
     try {
-      // 修正：直接發送 symbols 陣列，而不是包裝在對象中
-      const result = await post('/stocks/update-all', symbols)
+      const payload = symbols ? { symbols } : {}
+      const result = await post('/stocks/update-all', payload)
       
       if (result.success || result.message) {
         return result
@@ -210,7 +210,8 @@ export const useStocks = () => {
     error.value = null
     
     try {
-      const result = await post('/data/daily/batch-update', symbols)
+      const payload = symbols ? { symbols } : {}
+      const result = await post('/data/daily/batch-update', payload)
       
       if (result.success || result.status === 'completed') {
         return result.data || result

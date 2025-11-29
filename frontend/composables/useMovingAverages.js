@@ -69,12 +69,10 @@ export const useMovingAverages = () => {
 
   /**
    * 驗證均線數據
-   * @param {String} stockCode - 股票代號（可選）
    */
-  const validateMovingAverages = async (stockCode = null) => {
+  const validateMovingAverages = async () => {
     try {
-      const endpoint = stockCode ? `/moving-averages/validate/${stockCode}` : '/moving-averages/validate'
-      const result = await get(endpoint)
+      const result = await get('/moving-averages/validate')
       return result
     } catch (error) {
       console.error('驗證均線數據失敗:', error)
@@ -88,12 +86,10 @@ export const useMovingAverages = () => {
 
   /**
    * 清除均線數據
-   * @param {String} stockCode - 股票代號（可選，為空則清除所有）
    */
-  const clearMovingAverages = async (stockCode = null) => {
+  const clearMovingAverages = async () => {
     try {
-      const endpoint = stockCode ? `/moving-averages/clear/${stockCode}` : '/moving-averages/clear'
-      const result = await post(endpoint, null)
+      const result = await post('/moving-averages/clear', {})
       return result
     } catch (error) {
       console.error('清除均線數據失敗:', error)
@@ -140,19 +136,7 @@ export const useMovingAverages = () => {
    * @param {Boolean} forceRecalculate - 是否強制重新計算
    */
   const startSingleStockAsyncCalculation = async (stockCode, periods = [5, 10, 24, 72, 120, 240], forceRecalculate = false) => {
-    try {
-      const result = await post(`/moving-averages/calculate-single-async?stock_code=${stockCode}&force_recalculate=${forceRecalculate}`, {
-        periods: periods
-      })
-      return result
-    } catch (error) {
-      console.error('啟動單一股票非同步計算失敗:', error)
-      return {
-        success: false,
-        data: null,
-        error: error.message || '啟動單一股票非同步計算失敗'
-      }
-    }
+    return await startAsyncCalculation([stockCode], periods, forceRecalculate)
   }
 
   /**

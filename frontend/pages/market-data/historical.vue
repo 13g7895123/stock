@@ -389,6 +389,8 @@ const {
   getStocksWithData
 } = useStocks()
 
+const { get } = useApi()
+
 // 響應式資料
 const overallStats = ref(null)
 const historyData = ref([])
@@ -672,23 +674,28 @@ const updateStockData = async (stockCode) => {
     showNotification('info', `正在更新股票 ${stockCode} 的資料...`)
 
     // 調用資料更新API (使用GET方法)
-    const response = await $fetch(`http://localhost:9127/api/v1/data/daily/${stockCode}`)
+    const res = await get(`/data/daily/${stockCode}`)
 
-    if (response.status === 'success') {
-      const message = `股票 ${stockCode} 資料更新成功 (處理 ${response.records_processed} 筆，新增 ${response.records_created} 筆，更新 ${response.records_updated} 筆)`
-      showNotification('success', message)
-      // 重新整理股票清單和統計資訊
-      await handleRefreshStocksList()
-      await handleRefreshStats()
-    } else if (response.status === 'skipped') {
-      const message = `股票 ${stockCode} 資料已是最新 (最新日期: ${response.latest_date})`
-      showNotification('info', message)
+    if (res.success) {
+      const response = res.data
+      if (response.status === 'success') {
+        const message = `股票 ${stockCode} 資料更新成功 (處理 ${response.records_processed} 筆，新增 ${response.records_created} 筆，更新 ${response.records_updated} 筆)`
+        showNotification('success', message)
+        // 重新整理股票清單和統計資訊
+        await handleRefreshStocksList()
+        await handleRefreshStats()
+      } else if (response.status === 'skipped') {
+        const message = `股票 ${stockCode} 資料已是最新 (最新日期: ${response.latest_date})`
+        showNotification('info', message)
+      } else {
+        throw new Error(response.message || '更新失敗')
+      }
     } else {
-      throw new Error(response.message || '更新失敗')
+      throw new Error(res.error || '更新失敗')
     }
   } catch (error) {
     console.error('更新股票資料錯誤:', error)
-    const errorMessage = error.data?.detail || error.message || '更新失敗'
+    const errorMessage = error.message || '更新失敗'
     showNotification('error', `更新股票 ${stockCode} 資料失敗: ${errorMessage}`)
   }
 }
@@ -763,12 +770,12 @@ const handleAnalyzeAndUpdate = async () => {
 
       try {
         // 調用更新 API
-        const response = await $fetch(`http://localhost:9127/api/v1/data/daily/${stock.stock_code}`)
+        const res = await get(`/data/daily/${stock.stock_code}`)
 
-        if (response.status === 'success') {
+        if (res.success) {
           console.log(`✅ ${stock.stock_code} 更新成功`)
         } else {
-          console.warn(`⚠️ ${stock.stock_code} 更新狀態: ${response.status}`)
+          console.warn(`⚠️ ${stock.stock_code} 更新狀態: ${res.error}`)
         }
 
         // 避免請求過快，加入小延遲

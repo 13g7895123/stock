@@ -14,8 +14,11 @@
             <ClockIcon class="w-4 h-4" />
             <span>最後更新：{{ lastUpdateTime }}</span>
           </div>
-          <button class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center space-x-2">
-            <ArrowPathIcon class="w-4 h-4" />
+          <button 
+            @click="fetchData"
+            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center space-x-2"
+          >
+            <ArrowPathIcon class="w-4 h-4" :class="{ 'animate-spin': loading }" />
             <span>重新篩選</span>
           </button>
         </div>
@@ -124,9 +127,10 @@
         v-for="stock in filteredStocks"
         :key="stock.code"
         class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden"
+        @click="navigateTo(`/market-data/historical?stock_code=${stock.code}`)"
       >
         <!-- 卡片頭部 -->
-        <div class="p-6 pb-4">
+        <div class="p-6 pb-4 cursor-pointer">
           <div class="flex items-center justify-between mb-4">
             <div>
               <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
@@ -263,7 +267,8 @@
             <tr
               v-for="(stock, index) in filteredStocks"
               :key="stock.code"
-              class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+              @click="navigateTo(`/market-data/historical?stock_code=${stock.code}`)"
             >
               <td class="px-6 py-4">
                 <div class="flex items-center space-x-2">
@@ -370,72 +375,82 @@ definePageMeta({
   title: '股票推薦'
 })
 
+const { get } = useApi()
+
 // 響應式資料
 const viewMode = ref('grid')
 const scoreRange = ref('all')
 const riskLevel = ref('all')
 const sortBy = ref('score')
-const lastUpdateTime = ref('30分鐘前')
+const lastUpdateTime = ref('-')
+const loading = ref(false)
 
 // 篩選統計
 const screeningStats = ref([
-  { name: '總篩選股票', value: '156', icon: 'BuildingOfficeIcon' },
-  { name: '優秀評分', value: '42', icon: 'StarIcon' },
-  { name: '買進訊號', value: '89', icon: 'ArrowPathIcon' },
-  { name: '低風險', value: '67', icon: 'ChartBarIcon' }
+  { name: '總篩選股票', value: '-', icon: 'BuildingOfficeIcon' },
+  { name: '優秀評分', value: '-', icon: 'StarIcon' },
+  { name: '買進訊號', value: '-', icon: 'ArrowPathIcon' },
+  { name: '低風險', value: '-', icon: 'ChartBarIcon' }
 ])
 
-// 模擬推薦股票資料
-const recommendedStocks = ref([
-  {
-    code: '2330',
-    name: '台積電',
-    industry: '半導體',
-    price: 512.00,
-    change: 2.1,
-    score: 87,
-    riskLevel: 'low',
-    volume: '28,456K',
-    marketCap: '13.2T',
-    technicalIndicators: [
-      { name: 'RSI', value: '65.2', signal: 'buy' },
-      { name: 'MACD', value: '0.85', signal: 'buy' },
-      { name: 'KD', value: '78.3', signal: 'hold' },
-      { name: 'MA20', value: '508.5', signal: 'buy' }
-    ],
-    mainSignals: ['均線多頭', 'RSI強勢'],
-    reasons: [
-      '20日均線呈現多頭排列',
-      'RSI指標顯示強勢但未超買',
-      'MACD出現黃金交叉',
-      '成交量溫和放大'
-    ]
-  },
-  {
-    code: '2454',
-    name: '聯發科',
-    industry: '半導體',
-    price: 789.00,
-    change: 3.8,
-    score: 82,
-    riskLevel: 'medium',
-    volume: '15,234K',
-    marketCap: '1.26T',
-    technicalIndicators: [
-      { name: 'RSI', value: '58.7', signal: 'hold' },
-      { name: 'MACD', value: '1.23', signal: 'buy' },
-      { name: 'KD', value: '82.1', signal: 'sell' },
-      { name: 'MA20', value: '765.2', signal: 'buy' }
-    ],
-    mainSignals: ['MACD買進', '突破壓力'],
-    reasons: [
-      'MACD指標轉為正值',
-      '成功突破前期壓力位',
-      '法人連續買超',
-      '獲利成長動能強勁'
-    ]
+// 推薦股票資料
+const recommendedStocks = ref([])
+
+const fetchData = async () => {
+  loading.value = true
+  try {
+    // 1. Get latest date
+    const dateRes = await get('/stock-selection/latest-date')
+    let latestDate = null
+    if (dateRes.success) {
+      latestDate = dateRes.data.latest_date
+      lastUpdateTime.value = latestDate
+    }
+
+    if (latestDate) {
+      // 2. Get results
+      const res = await get('/stock-selection/results', { selection_date: latestDate })
+      if (res.success) {
+        const strategies = res.data.strategies
+        const perfectBull = strategies?.perfect_bull?.stocks || []
+        const shortBull = strategies?.short_bull?.stocks || []
+        
+        // Combine and map
+        const allStocks = [...perfectBull, ...shortBull]
+        
+        // Remove duplicates
+        const uniqueStocks = Array.from(new Map(allStocks.map(item => [item.stock_code, item])).values())
+
+        recommendedStocks.value = uniqueStocks.map(s => ({
+          code: s.stock_code,
+          name: s.stock_name,
+          industry: '電子', // API might not return industry, default or fetch separately
+          price: s.close_price,
+          change: s.price_change,
+          score: Math.round(s.ma_bias || 0), // Use MA bias as score proxy
+          riskLevel: s.ma_bias > 10 ? 'high' : (s.ma_bias > 5 ? 'medium' : 'low'),
+          volume: '-',
+          marketCap: '-',
+          technicalIndicators: [
+            { name: 'MA乖離', value: s.ma_bias?.toFixed(1), signal: s.ma_bias > 0 ? 'buy' : 'sell' }
+          ],
+          mainSignals: ['均線多頭'],
+          reasons: ['符合均線多頭排列策略']
+        }))
+
+        // Update stats
+        screeningStats.value[0].value = uniqueStocks.length.toString()
+        screeningStats.value[1].value = uniqueStocks.filter(s => s.ma_bias > 8).length.toString()
+        screeningStats.value[2].value = uniqueStocks.length.toString() // All are buy signals
+        screeningStats.value[3].value = uniqueStocks.filter(s => s.ma_bias <= 5).length.toString()
+      }
+    }
+  } catch (e) {
+    console.error('Fetch recommendations error:', e)
+  } finally {
+    loading.value = false
   }
-])
+}
 
 // 計算屬性
 const filteredStocks = computed(() => {
@@ -444,9 +459,9 @@ const filteredStocks = computed(() => {
   // 評分篩選
   if (scoreRange.value !== 'all') {
     result = result.filter(stock => {
-      if (scoreRange.value === 'excellent') return stock.score >= 80
-      if (scoreRange.value === 'good') return stock.score >= 60 && stock.score < 80
-      if (scoreRange.value === 'average') return stock.score < 60
+      if (scoreRange.value === 'excellent') return stock.score >= 10
+      if (scoreRange.value === 'good') return stock.score >= 5 && stock.score < 10
+      if (scoreRange.value === 'average') return stock.score < 5
     })
   }
 
@@ -478,4 +493,8 @@ const iconComponents = {
 const getIcon = (iconName) => {
   return iconComponents[iconName] || ChartBarIcon
 }
+
+onMounted(() => {
+  fetchData()
+})
 </script>

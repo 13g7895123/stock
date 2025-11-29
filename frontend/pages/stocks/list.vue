@@ -91,10 +91,13 @@
             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           >
             <option value="">全部產業</option>
-            <option value="semiconductor">半導體</option>
-            <option value="electronics">電子零組件</option>
-            <option value="finance">金融保險</option>
-            <option value="steel">鋼鐵工業</option>
+            <option value="半導體業">半導體業</option>
+            <option value="電子零組件業">電子零組件業</option>
+            <option value="電腦及週邊設備業">電腦及週邊設備業</option>
+            <option value="光電業">光電業</option>
+            <option value="通信網路業">通信網路業</option>
+            <option value="金融保險業">金融保險業</option>
+            <option value="其他電子業">其他電子業</option>
           </select>
         </div>
 
@@ -106,9 +109,9 @@
             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           >
             <option value="">全部狀態</option>
-            <option value="active">正常交易</option>
-            <option value="suspended">暫停交易</option>
-            <option value="delisted">已下市</option>
+            <option value="complete">資料完整</option>
+            <option value="partial">資料部分</option>
+            <option value="missing">資料缺失</option>
           </select>
         </div>
       </div>
@@ -213,16 +216,16 @@
                 <span class="text-sm text-gray-600 dark:text-gray-400">{{ stock.industry }}</span>
               </td>
               <td class="px-6 py-4">
-                <span class="text-sm font-medium text-gray-900 dark:text-white">${{ stock.price }}</span>
+                <span class="text-sm font-medium text-gray-900 dark:text-white">${{ stock.price || '-' }}</span>
               </td>
               <td class="px-6 py-4">
                 <span 
                   :class="[
                     'text-sm font-medium',
-                    stock.change >= 0 ? 'text-green-600' : 'text-red-600'
+                    (stock.change || 0) >= 0 ? 'text-green-600' : 'text-red-600'
                   ]"
                 >
-                  {{ stock.change >= 0 ? '+' : '' }}{{ stock.change }}%
+                  {{ (stock.change || 0) >= 0 ? '+' : '' }}{{ stock.change || '-' }}%
                 </span>
               </td>
               <td class="px-6 py-4">
@@ -243,7 +246,7 @@
                 </div>
               </td>
               <td class="px-6 py-4">
-                <span class="text-xs text-gray-500 dark:text-gray-400">{{ stock.lastUpdate }}</span>
+                <span class="text-xs text-gray-500 dark:text-gray-400">{{ stock.lastUpdate || '-' }}</span>
               </td>
               <td class="px-6 py-4 text-right">
                 <div class="flex items-center justify-end space-x-2">
@@ -331,7 +334,7 @@ const selectedStatus = ref('')
 const currentPage = ref(1)
 const pageSize = ref(20)
 const stockCount = ref(null)
-const realStocks = ref([]) // 從API獲取的實際股票資料
+const stocks = ref([]) // 實際股票資料
 
 // 通知系統
 const notification = ref({
@@ -354,43 +357,9 @@ const showNotification = (type, message) => {
   }, 5000)
 }
 
-// 模擬股票資料
-const stocks = ref([
-  {
-    code: '2330',
-    name: '台積電',
-    market: 'TSE',
-    industry: '半導體',
-    price: 512.00,
-    change: 2.1,
-    dataStatus: 'complete',
-    lastUpdate: '2分鐘前'
-  },
-  {
-    code: '2317',
-    name: '鴻海',
-    market: 'TSE',
-    industry: '電子零組件',
-    price: 106.50,
-    change: -1.2,
-    dataStatus: 'complete',
-    lastUpdate: '5分鐘前'
-  },
-  {
-    code: '2454',
-    name: '聯發科',
-    market: 'TSE',
-    industry: '半導體',
-    price: 789.00,
-    change: 3.8,
-    dataStatus: 'partial',
-    lastUpdate: '10分鐘前'
-  }
-])
-
 // 計算屬性
 const filteredStocks = computed(() => {
-  let result = realStocks.value.length > 0 ? realStocks.value : stocks.value
+  let result = stocks.value
 
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
@@ -409,13 +378,13 @@ const filteredStocks = computed(() => {
   }
 
   if (selectedStatus.value) {
-    result = result.filter(stock => stock.status === selectedStatus.value)
+    result = result.filter(stock => stock.dataStatus === selectedStatus.value)
   }
 
   return result
 })
 
-const totalPages = computed(() => Math.ceil(filteredStocks.value.length / pageSize.value))
+const totalPages = computed(() => Math.ceil(filteredStocks.value.length / pageSize.value) || 1)
 
 const paginatedStocks = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
@@ -443,16 +412,9 @@ const loadStockList = async () => {
       search: searchQuery.value || undefined
     })
     
-    console.log('API回傳資料:', result) // 除錯用
-    
     if (result && result.stocks) {
-      realStocks.value = result.stocks
+      stocks.value = result.stocks
       showNotification('success', `載入 ${result.stocks.length} 檔股票資料`)
-      
-      // 如果有分頁資訊，也顯示總數
-      if (result.pagination && result.pagination.total) {
-        console.log(`總共 ${result.pagination.total} 檔股票，目前載入 ${result.stocks.length} 檔`)
-      }
     } else {
       console.error('API回傳格式錯誤:', result)
       showNotification('error', '無法取得股票資料，請檢查API回應格式')

@@ -226,8 +226,8 @@
                   <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">MA10</th>
                   <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">MA20</th>
                   <th v-if="activeTab !== 'short_bull'" class="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">MA60</th>
-                  <th v-if="activeTab === 'perfect_bull'" class="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">MA120</th>
-                  <th v-if="activeTab === 'perfect_bull'" class="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">MA240</th>
+                  <th v-if="activeTab === 'perfect_bull' || activeTab === 'all_stocks'" class="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">MA120</th>
+                  <th v-if="activeTab === 'perfect_bull' || activeTab === 'all_stocks'" class="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">MA240</th>
                   <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">5日乖離率</th>
                   <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300">操作</th>
                 </tr>
@@ -277,10 +277,10 @@
                   <td v-if="activeTab !== 'short_bull'" class="px-4 py-3 text-right text-gray-700 dark:text-gray-300">
                     {{ formatNumber(stock.ma_60) }}
                   </td>
-                  <td v-if="activeTab === 'perfect_bull'" class="px-4 py-3 text-right text-gray-700 dark:text-gray-300">
+                  <td v-if="activeTab === 'perfect_bull' || activeTab === 'all_stocks'" class="px-4 py-3 text-right text-gray-700 dark:text-gray-300">
                     {{ formatNumber(stock.ma_120) }}
                   </td>
-                  <td v-if="activeTab === 'perfect_bull'" class="px-4 py-3 text-right text-gray-700 dark:text-gray-300">
+                  <td v-if="activeTab === 'perfect_bull' || activeTab === 'all_stocks'" class="px-4 py-3 text-right text-gray-700 dark:text-gray-300">
                     {{ formatNumber(stock.ma_240) }}
                   </td>
                   <td class="px-4 py-3 text-right">
@@ -368,6 +368,12 @@ const tabs = [
     label: '空頭趨勢',
     icon: 'mdi:trending-down',
     badgeClass: 'badge-error'
+  },
+  {
+    key: 'all_stocks',
+    label: '所有股票',
+    icon: 'mdi:format-list-bulleted',
+    badgeClass: 'badge-neutral'
   }
 ]
 
@@ -383,7 +389,8 @@ const getStrategyIcon = (tabKey) => {
   const icons = {
     perfect_bull: 'mdi:rocket-launch',
     short_bull: 'mdi:trending-up',
-    bear: 'mdi:trending-down'
+    bear: 'mdi:trending-down',
+    all_stocks: 'mdi:format-list-bulleted'
   }
   return icons[tabKey]
 }

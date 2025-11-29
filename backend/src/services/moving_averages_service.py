@@ -476,16 +476,26 @@ class MovingAveragesService:
             for _, row in df.iterrows():
                 trade_date = row['trade_date']
                 
-                # 檢查是否已存在計算結果（如果不強制重算）
-                if not force_recalculate:
-                    existing = self.db.query(MovingAverages).filter(
-                        and_(
-                            MovingAverages.stock_id == stock_code,
-                            MovingAverages.trade_date == trade_date
-                        )
-                    ).first()
-                    
-                    if existing:
+                # 檢查是否已存在計算結果
+                existing_record = self.db.query(MovingAverages).filter(
+                    and_(
+                        MovingAverages.stock_id == stock_code,
+                        MovingAverages.trade_date == trade_date
+                    )
+                ).first()
+                
+                # 如果不強制重算，且記錄已存在且所有均線都有值，則跳過
+                if not force_recalculate and existing_record:
+                    # 檢查是否所有均線都已有值
+                    all_ma_calculated = all([
+                        existing_record.ma_5 is not None,
+                        existing_record.ma_10 is not None,
+                        existing_record.ma_20 is not None,
+                        existing_record.ma_60 is not None,
+                        existing_record.ma_120 is not None,
+                        existing_record.ma_240 is not None
+                    ])
+                    if all_ma_calculated:
                         continue
 
                 # 計算各週期均線
@@ -501,17 +511,28 @@ class MovingAveragesService:
                         ma_values[f'ma_{period}'] = None
 
                 # 建立或更新均線記錄
-                existing_record = self.db.query(MovingAverages).filter(
-                    and_(
-                        MovingAverages.stock_id == stock_code,
-                        MovingAverages.trade_date == trade_date
-                    )
-                ).first()
-
                 if existing_record:
-                    # 更新現有記錄
+                    # 更新現有記錄（補上缺少的均線值）
+                    updated = False
                     for period in periods:
-                        setattr(existing_record, f'ma_{period}', ma_values.get(f'ma_{period}'))
+                        ma_key = f'ma_{period}'
+                        new_value = ma_values.get(ma_key)
+                        current_value = getattr(existing_record, ma_key, None)
+                        # 只有當新值存在且當前值為空時才更新
+                        if new_value is not None and current_value is None:
+                            setattr(existing_record, ma_key, new_value)
+                            updated = True
+                        # 或者強制重算時，直接更新
+                        elif force_recalculate and new_value is not None:
+                            setattr(existing_record, ma_key, new_value)
+                            updated = True
+                    
+                    if updated:
+                        calculations.append({
+                            "trade_date": trade_date.strftime('%Y-%m-%d'),
+                            "stock_code": stock_code,
+                            **ma_values
+                        })
                 else:
                     # 新增記錄
                     new_record = MovingAverages(
@@ -550,10 +571,127 @@ class MovingAveragesService:
         force_recalculate: bool,
         batch_size: int
     ):
-        """背景執行均線計算任務"""
+        """背景執行均線計算任務（多線程並行處理）"""
         import threading
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import queue
         
-        def run_calculation():
+        # 進度追蹤用的共享變數
+        progress_lock = threading.Lock()
+        progress_data = {
+            "processed": 0,
+            "success": 0,
+            "failed": 0,
+            "total_calculations": 0
+        }
+        
+        def calculate_stock_ma(stock_code: str) -> dict:
+            """計算單一股票均線（線程安全版本）"""
+            from src.core.database import SessionLocal
+            
+            # 每個線程使用獨立的資料庫連接
+            local_db = SessionLocal()
+            try:
+                # 獲取股票的歷史資料
+                daily_data = local_db.query(StockDailyData).filter(
+                    StockDailyData.stock_code == stock_code
+                ).order_by(StockDailyData.trade_date).all()
+
+                if len(daily_data) < max(periods):
+                    return {"stock_code": stock_code, "success": False, "calculations": 0, "reason": "資料不足"}
+
+                # 轉換為pandas DataFrame
+                df = pd.DataFrame([
+                    {
+                        'trade_date': record.trade_date,
+                        'close_price': record.close_price
+                    }
+                    for record in daily_data
+                ])
+
+                df['trade_date'] = pd.to_datetime(df['trade_date'])
+                df = df.sort_values('trade_date')
+
+                calculations_count = 0
+
+                # 計算各週期均線
+                for _, row in df.iterrows():
+                    trade_date = row['trade_date']
+                    
+                    # 檢查是否已存在計算結果
+                    existing_record = local_db.query(MovingAverages).filter(
+                        and_(
+                            MovingAverages.stock_id == stock_code,
+                            MovingAverages.trade_date == trade_date
+                        )
+                    ).first()
+                    
+                    # 如果不強制重算，且記錄已存在且所有均線都有值，則跳過
+                    if not force_recalculate and existing_record:
+                        all_ma_calculated = all([
+                            existing_record.ma_5 is not None,
+                            existing_record.ma_10 is not None,
+                            existing_record.ma_20 is not None,
+                            existing_record.ma_60 is not None,
+                            existing_record.ma_120 is not None,
+                            existing_record.ma_240 is not None
+                        ])
+                        if all_ma_calculated:
+                            continue
+
+                    # 計算各週期均線
+                    ma_values = {}
+                    for period in periods:
+                        period_data = df[df['trade_date'] <= trade_date].tail(period)
+                        
+                        if len(period_data) >= period:
+                            ma_value = period_data['close_price'].mean()
+                            ma_values[f'ma_{period}'] = round(ma_value, 4)
+                        else:
+                            ma_values[f'ma_{period}'] = None
+
+                    # 建立或更新均線記錄
+                    if existing_record:
+                        updated = False
+                        for period in periods:
+                            ma_key = f'ma_{period}'
+                            new_value = ma_values.get(ma_key)
+                            current_value = getattr(existing_record, ma_key, None)
+                            if new_value is not None and current_value is None:
+                                setattr(existing_record, ma_key, new_value)
+                                updated = True
+                            elif force_recalculate and new_value is not None:
+                                setattr(existing_record, ma_key, new_value)
+                                updated = True
+                        
+                        if updated:
+                            calculations_count += 1
+                    else:
+                        new_record = MovingAverages(
+                            stock_id=stock_code,
+                            trade_date=trade_date,
+                            ma_5=ma_values.get('ma_5'),
+                            ma_10=ma_values.get('ma_10'),
+                            ma_20=ma_values.get('ma_20'),
+                            ma_60=ma_values.get('ma_60'),
+                            ma_120=ma_values.get('ma_120'),
+                            ma_240=ma_values.get('ma_240')
+                        )
+                        local_db.add(new_record)
+                        calculations_count += 1
+
+                local_db.commit()
+                return {"stock_code": stock_code, "success": True, "calculations": calculations_count}
+
+            except Exception as e:
+                local_db.rollback()
+                logger.error(f"計算股票 {stock_code} 均線失敗: {str(e)}")
+                return {"stock_code": stock_code, "success": False, "calculations": 0, "error": str(e)}
+            finally:
+                local_db.close()
+        
+        def run_parallel_calculation():
+            """並行執行均線計算"""
             try:
                 # 獲取任務記錄
                 task_log = self.db.query(TaskExecutionLog).filter(
@@ -564,78 +702,96 @@ class MovingAveragesService:
                     logger.error(f"找不到任務記錄ID: {task_log_id}")
                     return
                 
-                processed_stocks = 0
-                total_calculations = 0
-                failed_stocks = 0
+                total_stocks = len(stock_codes)
+                # 使用線程池並行處理，根據CPU核心數決定線程數
+                import os
+                max_workers = min(os.cpu_count() * 2 or 4, 8)  # 最多8個線程
                 
-                for i, stock_code in enumerate(stock_codes):
-                    try:
-                        # 更新進度
-                        progress = round((i / len(stock_codes)) * 100, 1)
-                        task_log.progress = progress
-                        task_log.processed_count = i
-                        task_log.result_summary = f"正在計算第 {i+1}/{len(stock_codes)} 檔股票: {stock_code} 的均線"
-                        
-                        # 更新記憶體中的任務狀態
-                        if hasattr(self, '_task_status') and task_id in self._task_status:
-                            self._task_status[task_id].update({
-                                "current": i,
-                                "percentage": progress,
-                                "stage": f"正在計算股票 {stock_code} 的均線..."
-                            })
-                        
-                        # 計算單一股票均線
-                        calculations = self._calculate_single_stock_ma(stock_code, periods, force_recalculate)
-                        
-                        if calculations:
-                            processed_stocks += 1
-                            total_calculations += len(calculations)
-                            task_log.success_count = processed_stocks
-                            logger.info(f"成功計算股票 {stock_code} 均線，計算 {len(calculations)} 筆資料")
-                        else:
-                            failed_stocks += 1
-                            task_log.error_count = failed_stocks
-                            logger.warning(f"股票 {stock_code} 沒有計算任何均線")
-                        
-                        # 每處理10檔股票或最後一檔時更新資料庫
-                        if (i + 1) % 10 == 0 or i == len(stock_codes) - 1:
-                            self.db.commit()
+                logger.info(f"開始並行計算 {total_stocks} 檔股票的均線，使用 {max_workers} 個線程")
+                
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    # 提交所有任務
+                    future_to_stock = {
+                        executor.submit(calculate_stock_ma, stock_code): stock_code 
+                        for stock_code in stock_codes
+                    }
+                    
+                    # 處理完成的任務
+                    for future in as_completed(future_to_stock):
+                        stock_code = future_to_stock[future]
+                        try:
+                            result = future.result()
                             
-                    except Exception as e:
-                        failed_stocks += 1
-                        task_log.error_count = failed_stocks
-                        logger.error(f"計算股票 {stock_code} 均線失敗: {str(e)}")
-                        continue
+                            with progress_lock:
+                                progress_data["processed"] += 1
+                                if result["success"]:
+                                    progress_data["success"] += 1
+                                    progress_data["total_calculations"] += result["calculations"]
+                                else:
+                                    progress_data["failed"] += 1
+                                
+                                # 更新進度
+                                current = progress_data["processed"]
+                                progress = round((current / total_stocks) * 100, 1)
+                                
+                                # 每處理 10 檔股票更新一次資料庫進度
+                                if current % 10 == 0 or current == total_stocks:
+                                    task_log.progress = progress
+                                    task_log.processed_count = current
+                                    task_log.success_count = progress_data["success"]
+                                    task_log.error_count = progress_data["failed"]
+                                    task_log.result_summary = f"進度: {current}/{total_stocks} ({progress}%)，成功: {progress_data['success']}，失敗: {progress_data['failed']}"
+                                    self.db.commit()
+                                
+                                # 更新記憶體中的任務狀態
+                                if hasattr(self, '_task_status') and task_id in self._task_status:
+                                    self._task_status[task_id].update({
+                                        "current": current,
+                                        "percentage": progress,
+                                        "stage": f"已處理 {current}/{total_stocks} 檔股票..."
+                                    })
+                            
+                            if result["success"] and result["calculations"] > 0:
+                                logger.debug(f"股票 {stock_code} 計算完成，更新 {result['calculations']} 筆")
+                                
+                        except Exception as e:
+                            with progress_lock:
+                                progress_data["processed"] += 1
+                                progress_data["failed"] += 1
+                            logger.error(f"處理股票 {stock_code} 時發生錯誤: {str(e)}")
                 
                 # 任務完成
                 task_log.status = "completed"
                 task_log.end_time = datetime.now()
                 task_log.duration_seconds = (task_log.end_time - task_log.start_time).total_seconds()
                 task_log.progress = 100
-                task_log.processed_count = len(stock_codes)
-                task_log.success_count = processed_stocks
-                task_log.error_count = failed_stocks
-                task_log.result_summary = f"任務完成：成功計算 {processed_stocks} 檔股票，失敗 {failed_stocks} 檔，總計算量 {total_calculations} 筆"
+                task_log.processed_count = total_stocks
+                task_log.success_count = progress_data["success"]
+                task_log.error_count = progress_data["failed"]
+                task_log.result_summary = f"任務完成：成功計算 {progress_data['success']} 檔股票，失敗 {progress_data['failed']} 檔，總計算量 {progress_data['total_calculations']} 筆，耗時 {task_log.duration_seconds:.1f} 秒"
                 
                 # 更新記憶體中的任務狀態
                 if hasattr(self, '_task_status') and task_id in self._task_status:
                     self._task_status[task_id].update({
                         "state": "SUCCESS",
-                        "current": len(stock_codes),
+                        "current": total_stocks,
                         "percentage": 100,
                         "stage": "計算完成",
                         "result": {
-                            "processed_stocks": processed_stocks,
-                            "failed_stocks": failed_stocks,
-                            "total_calculations": total_calculations
+                            "processed_stocks": progress_data["success"],
+                            "failed_stocks": progress_data["failed"],
+                            "total_calculations": progress_data["total_calculations"]
                         }
                     })
                 
                 self.db.commit()
-                logger.info(f"均線計算任務 {task_id} 完成：處理 {processed_stocks}/{len(stock_codes)} 檔股票，總計算量 {total_calculations} 筆")
+                logger.info(f"均線計算任務 {task_id} 完成：處理 {progress_data['success']}/{total_stocks} 檔股票，總計算量 {progress_data['total_calculations']} 筆，耗時 {task_log.duration_seconds:.1f} 秒")
                 
             except Exception as e:
                 # 任務失敗
+                task_log = self.db.query(TaskExecutionLog).filter(
+                    TaskExecutionLog.id == task_log_id
+                ).first()
                 if task_log:
                     task_log.status = "failed"
                     task_log.end_time = datetime.now()
@@ -653,7 +809,7 @@ class MovingAveragesService:
                 
                 logger.error(f"均線計算任務 {task_id} 失敗: {str(e)}")
         
-        # 在新線程中執行計算任務
-        thread = threading.Thread(target=run_calculation)
+        # 在新線程中執行並行計算任務
+        thread = threading.Thread(target=run_parallel_calculation)
         thread.daemon = True
         thread.start()

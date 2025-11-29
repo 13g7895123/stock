@@ -89,7 +89,7 @@ class StockSelectionService:
 
             # 如果沒有指定策略類型，使用所有策略
             if not strategy_types:
-                strategy_types = ['perfect_bull', 'short_bull', 'bear']
+                strategy_types = ['perfect_bull', 'short_bull', 'bear', 'all_stocks']
 
             results = {
                 'selection_date': selection_date.strftime('%Y-%m-%d'),
@@ -105,6 +105,9 @@ class StockSelectionService:
 
             if 'bear' in strategy_types:
                 results['strategies']['bear'] = self._select_bear(selection_date)
+
+            if 'all_stocks' in strategy_types:
+                results['strategies']['all_stocks'] = self._select_all_stocks(selection_date)
 
             # 計算總結統計
             results['summary'] = self._calculate_summary(results['strategies'])
@@ -372,6 +375,80 @@ class StockSelectionService:
                 'error': str(e)
             }
 
+    def _select_all_stocks(self, selection_date: date) -> Dict[str, Any]:
+        """選出所有有均線資料的股票
+
+        Args:
+            selection_date: 選股日期
+
+        Returns:
+            所有有均線資料的股票列表
+        """
+        try:
+            # 查詢符合條件的股票
+            query = self.db.query(
+                MovingAverages.stock_id,
+                MovingAverages.ma_5,
+                MovingAverages.ma_10,
+                MovingAverages.ma_20,
+                MovingAverages.ma_60,
+                MovingAverages.ma_120,
+                MovingAverages.ma_240,
+                StockDailyData.close_price,
+                StockDailyData.volume,
+                StockDailyData.price_change,
+                Stock.stock_name
+            ).join(
+                StockDailyData,
+                and_(
+                    MovingAverages.stock_id == StockDailyData.stock_code,
+                    MovingAverages.trade_date == StockDailyData.trade_date
+                )
+            ).join(
+                Stock,
+                MovingAverages.stock_id == Stock.stock_code
+            ).filter(
+                MovingAverages.trade_date == selection_date
+            ).order_by(
+                MovingAverages.stock_id
+            ).all()
+
+            stocks = []
+            for row in query:
+                stocks.append({
+                    'stock_code': row.stock_id,
+                    'stock_name': row.stock_name,
+                    'close_price': float(row.close_price),
+                    'price_change': float(row.price_change) if row.price_change else 0,
+                    'volume': int(row.volume),
+                    'ma_5': float(row.ma_5) if row.ma_5 else None,
+                    'ma_10': float(row.ma_10) if row.ma_10 else None,
+                    'ma_20': float(row.ma_20) if row.ma_20 else None,
+                    'ma_60': float(row.ma_60) if row.ma_60 else None,
+                    'ma_120': float(row.ma_120) if row.ma_120 else None,
+                    'ma_240': float(row.ma_240) if row.ma_240 else None,
+                    'ma_bias': round((float(row.close_price) - float(row.ma_5)) / float(row.ma_5) * 100, 2) if row.ma_5 else None
+                })
+
+            return {
+                'name': '所有股票',
+                'description': '所有有均線資料的股票清單',
+                'condition': '無',
+                'count': len(stocks),
+                'stocks': stocks
+            }
+
+        except Exception as e:
+            logger.error(f"選出所有股票失敗: {str(e)}")
+            return {
+                'name': '所有股票',
+                'description': '所有有均線資料的股票清單',
+                'condition': '無',
+                'count': 0,
+                'stocks': [],
+                'error': str(e)
+            }
+
     def _calculate_summary(self, strategies: Dict[str, Dict]) -> Dict[str, Any]:
         """計算選股結果總結
 
@@ -386,7 +463,9 @@ class StockSelectionService:
 
         for strategy_key, strategy_result in strategies.items():
             count = strategy_result.get('count', 0)
-            total_stocks += count
+            # all_stocks 不計入總選出股票數，因為它是所有股票的集合
+            if strategy_key != 'all_stocks':
+                total_stocks += count
             strategy_counts[strategy_key] = count
 
         # 取得所有有均線資料的股票總數

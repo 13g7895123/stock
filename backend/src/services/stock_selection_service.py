@@ -138,6 +138,7 @@ class StockSelectionService:
                 MovingAverages.ma_10,
                 MovingAverages.ma_20,
                 MovingAverages.ma_60,
+                MovingAverages.ma_72,
                 MovingAverages.ma_120,
                 MovingAverages.ma_240,
                 StockDailyData.close_price,
@@ -182,6 +183,7 @@ class StockSelectionService:
                     'ma_10': float(row.ma_10),
                     'ma_20': float(row.ma_20),
                     'ma_60': float(row.ma_60),
+                    'ma_72': float(row.ma_72) if row.ma_72 else None,
                     'ma_120': float(row.ma_120),
                     'ma_240': float(row.ma_240),
                     'ma_bias': round((float(row.close_price) - float(row.ma_5)) / float(row.ma_5) * 100, 2)  # 5日均線乖離率
@@ -392,6 +394,7 @@ class StockSelectionService:
                 MovingAverages.ma_10,
                 MovingAverages.ma_20,
                 MovingAverages.ma_60,
+                MovingAverages.ma_72,
                 MovingAverages.ma_120,
                 MovingAverages.ma_240,
                 StockDailyData.close_price,
@@ -425,6 +428,7 @@ class StockSelectionService:
                     'ma_10': float(row.ma_10) if row.ma_10 else None,
                     'ma_20': float(row.ma_20) if row.ma_20 else None,
                     'ma_60': float(row.ma_60) if row.ma_60 else None,
+                    'ma_72': float(row.ma_72) if row.ma_72 else None,
                     'ma_120': float(row.ma_120) if row.ma_120 else None,
                     'ma_240': float(row.ma_240) if row.ma_240 else None,
                     'ma_bias': round((float(row.close_price) - float(row.ma_5)) / float(row.ma_5) * 100, 2) if row.ma_5 else None

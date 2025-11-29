@@ -104,6 +104,7 @@ class MovingAverages(Base):
     ma_10 = Column(Float, comment="10日均線") 
     ma_20 = Column(Float, comment="20日均線")
     ma_60 = Column(Float, comment="60日均線")
+    ma_72 = Column(Float, comment="72日均線")
     ma_120 = Column(Float, comment="120日均線")
     ma_240 = Column(Float, comment="240日均線")
     created_at = Column(DateTime(timezone=True), server_default=func.now())

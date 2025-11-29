@@ -69,7 +69,7 @@ class MovingAveragesService:
         """同步計算均線"""
         try:
             if periods is None:
-                periods = [5, 10, 20, 60, 120, 240]
+                periods = [5, 10, 20, 60, 72, 120, 240]
 
             # 如果沒有指定股票代碼，則獲取所有有資料的股票
             if stock_codes is None:
@@ -150,6 +150,7 @@ class MovingAveragesService:
                     "ma10": record.ma_10,
                     "ma20": record.ma_20,
                     "ma60": record.ma_60,
+                    "ma72": record.ma_72,
                     "ma120": record.ma_120,
                     "ma240": record.ma_240
                 }
@@ -197,7 +198,7 @@ class MovingAveragesService:
         """啟動非同步均線計算任務"""
         try:
             if periods is None:
-                periods = [5, 10, 20, 60, 120, 240]
+                periods = [5, 10, 20, 60, 72, 120, 240]
 
             # 生成任務ID
             task_id = str(uuid.uuid4())
@@ -492,6 +493,7 @@ class MovingAveragesService:
                         existing_record.ma_10 is not None,
                         existing_record.ma_20 is not None,
                         existing_record.ma_60 is not None,
+                        existing_record.ma_72 is not None,
                         existing_record.ma_120 is not None,
                         existing_record.ma_240 is not None
                     ])
@@ -542,6 +544,7 @@ class MovingAveragesService:
                         ma_10=ma_values.get('ma_10'),
                         ma_20=ma_values.get('ma_20'),
                         ma_60=ma_values.get('ma_60'),
+                        ma_72=ma_values.get('ma_72'),
                         ma_120=ma_values.get('ma_120'),
                         ma_240=ma_values.get('ma_240')
                     )
@@ -633,6 +636,7 @@ class MovingAveragesService:
                             existing_record.ma_10 is not None,
                             existing_record.ma_20 is not None,
                             existing_record.ma_60 is not None,
+                            existing_record.ma_72 is not None,
                             existing_record.ma_120 is not None,
                             existing_record.ma_240 is not None
                         ])
@@ -674,6 +678,7 @@ class MovingAveragesService:
                             ma_10=ma_values.get('ma_10'),
                             ma_20=ma_values.get('ma_20'),
                             ma_60=ma_values.get('ma_60'),
+                            ma_72=ma_values.get('ma_72'),
                             ma_120=ma_values.get('ma_120'),
                             ma_240=ma_values.get('ma_240')
                         )

@@ -34,18 +34,18 @@ STATS=$(docker exec $DB_CONTAINER psql -U $DB_USER -d $DB_NAME -t -A -c "
 SELECT 
     COUNT(*) as total,
     COUNT(CASE WHEN ma_20 IS NULL THEN 1 END) as need_ma20,
-    COUNT(CASE WHEN ma_60 IS NULL THEN 1 END) as need_ma60,
+    COUNT(CASE WHEN ma_72 IS NULL THEN 1 END) as need_ma72,
     COUNT(CASE WHEN ma_120 IS NULL THEN 1 END) as need_ma120,
     COUNT(CASE WHEN ma_240 IS NULL THEN 1 END) as need_ma240
 FROM moving_averages;
 ")
 
-IFS='|' read -r TOTAL NEED_MA20 NEED_MA60 NEED_MA120 NEED_MA240 <<< "$STATS"
+IFS='|' read -r TOTAL NEED_MA20 NEED_MA72 NEED_MA120 NEED_MA240 <<< "$STATS"
 
 echo -e "${GREEN}📈 資料統計:${NC}"
 echo -e "   總記錄數: ${YELLOW}$TOTAL${NC}"
 echo -e "   需更新 MA20: ${YELLOW}$NEED_MA20${NC}"
-echo -e "   需更新 MA60: ${YELLOW}$NEED_MA60${NC}"
+echo -e "   需更新 MA72: ${YELLOW}$NEED_MA72${NC}"
 echo -e "   需更新 MA120: ${YELLOW}$NEED_MA120${NC}"
 echo -e "   需更新 MA240: ${YELLOW}$NEED_MA240${NC}"
 echo ""
@@ -84,8 +84,8 @@ for STOCK_ID in $STOCKS; do
             AVG(sdd.close_price) OVER (
                 PARTITION BY sdd.stock_code 
                 ORDER BY sdd.trade_date 
-                ROWS BETWEEN 59 PRECEDING AND CURRENT ROW
-            ) as calc_ma60,
+                ROWS BETWEEN 71 PRECEDING AND CURRENT ROW
+            ) as calc_ma72,
             AVG(sdd.close_price) OVER (
                 PARTITION BY sdd.stock_code 
                 ORDER BY sdd.trade_date 
@@ -104,8 +104,8 @@ for STOCK_ID in $STOCKS; do
             COUNT(*) OVER (
                 PARTITION BY sdd.stock_code 
                 ORDER BY sdd.trade_date 
-                ROWS BETWEEN 59 PRECEDING AND CURRENT ROW
-            ) as cnt_60,
+                ROWS BETWEEN 71 PRECEDING AND CURRENT ROW
+            ) as cnt_72,
             COUNT(*) OVER (
                 PARTITION BY sdd.stock_code 
                 ORDER BY sdd.trade_date 
@@ -122,7 +122,7 @@ for STOCK_ID in $STOCKS; do
     UPDATE moving_averages ma
     SET 
         ma_20 = CASE WHEN rd.cnt_20 >= 20 THEN ROUND(rd.calc_ma20::numeric, 2) ELSE ma.ma_20 END,
-        ma_60 = CASE WHEN rd.cnt_60 >= 60 THEN ROUND(rd.calc_ma60::numeric, 2) ELSE ma.ma_60 END,
+        ma_72 = CASE WHEN rd.cnt_72 >= 72 THEN ROUND(rd.calc_ma72::numeric, 2) ELSE ma.ma_72 END,
         ma_120 = CASE WHEN rd.cnt_120 >= 120 THEN ROUND(rd.calc_ma120::numeric, 2) ELSE ma.ma_120 END,
         ma_240 = CASE WHEN rd.cnt_240 >= 240 THEN ROUND(rd.calc_ma240::numeric, 2) ELSE ma.ma_240 END
     FROM ranked_data rd
@@ -145,7 +145,7 @@ SELECT
     COUNT(ma_5) as \"有MA5\",
     COUNT(ma_10) as \"有MA10\",
     COUNT(ma_20) as \"有MA20\",
-    COUNT(ma_60) as \"有MA60\",
+    COUNT(ma_72) as \"有MA72\",
     COUNT(ma_120) as \"有MA120\",
     COUNT(ma_240) as \"有MA240\"
 FROM moving_averages;

@@ -225,7 +225,7 @@
                   <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">MA5</th>
                   <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">MA10</th>
                   <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">MA20</th>
-                  <th v-if="activeTab !== 'short_bull'" class="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">MA60</th>
+                  <th v-if="activeTab === 'perfect_bull' || activeTab === 'all_stocks'" class="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">MA72</th>
                   <th v-if="activeTab === 'perfect_bull' || activeTab === 'all_stocks'" class="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">MA120</th>
                   <th v-if="activeTab === 'perfect_bull' || activeTab === 'all_stocks'" class="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">MA240</th>
                   <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">5日乖離率</th>
@@ -274,8 +274,8 @@
                   <td class="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{{ formatNumber(stock.ma_5) }}</td>
                   <td class="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{{ formatNumber(stock.ma_10) }}</td>
                   <td class="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{{ formatNumber(stock.ma_20) }}</td>
-                  <td v-if="activeTab !== 'short_bull'" class="px-4 py-3 text-right text-gray-700 dark:text-gray-300">
-                    {{ formatNumber(stock.ma_60) }}
+                  <td v-if="activeTab === 'perfect_bull' || activeTab === 'all_stocks'" class="px-4 py-3 text-right text-gray-700 dark:text-gray-300">
+                    {{ formatNumber(stock.ma_72) }}
                   </td>
                   <td v-if="activeTab === 'perfect_bull' || activeTab === 'all_stocks'" class="px-4 py-3 text-right text-gray-700 dark:text-gray-300">
                     {{ formatNumber(stock.ma_120) }}

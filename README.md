@@ -1,298 +1,178 @@
-# Stock Analysis System
+# 台股分析系統 (Stock Analysis System)
 
-A comprehensive stock analysis system built with FastAPI, providing real-time market data collection, technical analysis, and trading signals.
+台股資料收集、技術分析與智能選股系統，採用現代化微服務架構。
 
-## Architecture Overview
+## 📁 專案結構
 
 ```
-stock-analysis-system/
-├── backend/                    # Python FastAPI Backend
+stock/
+├── backend/                    # Python FastAPI 後端服務
 │   ├── src/
-│   │   ├── api/               # API endpoints
-│   │   ├── core/              # Core configurations
-│   │   ├── models/            # Database models
-│   │   ├── services/          # Business logic services
-│   │   ├── schemas/           # Pydantic schemas
-│   │   ├── utils/             # Utility functions
-│   │   ├── celery_app/        # Celery tasks and configuration
-│   │   └── main.py            # FastAPI application entry point
-│   ├── tests/                 # Test suites
-│   ├── alembic/               # Database migrations
-│   └── requirements.txt       # Python dependencies
-├── frontend/                  # Frontend application (admin panel)
-├── docs/                      # Documentation
-├── docker-compose.yml         # Docker services configuration
-├── .env.example              # Environment variables template
-└── .gitignore                # Git ignore patterns
+│   │   ├── api/               # API 端點定義
+│   │   ├── core/              # 核心配置 (資料庫、設定)
+│   │   ├── models/            # SQLAlchemy 資料模型
+│   │   ├── services/          # 業務邏輯服務層
+│   │   ├── schemas/           # Pydantic 資料驗證
+│   │   ├── utils/             # 工具函數
+│   │   └── celery_app/        # Celery 背景任務
+│   ├── tests/                 # 測試套件
+│   └── alembic/               # 資料庫遷移
+│
+├── frontend/                   # Nuxt.js 前端應用
+│   ├── pages/                 # 頁面元件
+│   ├── components/            # 共用元件
+│   ├── composables/           # 組合式函數
+│   ├── stores/                # Pinia 狀態管理
+│   └── tests/                 # 前端測試
+│
+├── crawler-service/           # Go 爬蟲服務
+│   ├── cmd/                   # 程式進入點
+│   ├── internal/              # 內部模組
+│   └── pkg/                   # 公開套件
+│
+├── scripts/                   # 腳本工具
+│   ├── maintenance/           # 維運腳本 (均線更新、部署等)
+│   ├── dev-tools/             # 開發輔助工具
+│   └── deprecated/            # 已棄用腳本 (保留參考)
+│
+├── docs/                      # 專案文件
+│   ├── go-migration-plan.md   # Go 遷移計畫
+│   ├── go-implementation-status.md
+│   └── archive/               # 歷史文件
+│
+├── data/                      # 資料儲存 (Docker volumes)
+├── logs/                      # 應用程式日誌
+├── uploads/                   # 上傳檔案暫存
+│
+├── docker-compose.yml         # Docker 服務編排
+├── .env                       # 環境變數 (不提交)
+├── .env.office                # 辦公室環境變數
+├── CLAUDE.md                  # AI 開發助手指引
+└── USAGE_GUIDE.md             # 使用者操作指南
 ```
 
-## Features
+## 🚀 快速開始
 
-### Core Features
-- **Real-time Market Data**: Collect and store stock market data from multiple sources
-- **Technical Analysis**: Calculate various technical indicators (SMA, EMA, RSI, MACD, Bollinger Bands)
-- **Trading Signals**: Generate automated buy/sell/hold signals based on technical analysis
-- **Background Tasks**: Asynchronous data processing with Celery
-- **RESTful API**: Well-documented REST API for all functionality
-- **Database Management**: PostgreSQL with SQLAlchemy ORM and Alembic migrations
+### 環境需求
+- Docker & Docker Compose
+- (選用) Python 3.11+, Node.js 20+, Go 1.21+
 
-### Technical Stack
-- **Backend**: Python 3.11, FastAPI, SQLAlchemy, PostgreSQL
-- **Task Queue**: Celery with Redis broker
-- **Technical Analysis**: pandas, TA-Lib, numpy
-- **API Documentation**: Swagger/OpenAPI auto-generated docs
-- **Containerization**: Docker and Docker Compose
-- **Code Quality**: Black, isort, flake8, mypy, pre-commit hooks
+### 啟動服務
 
-## Quick Start
-
-### Prerequisites
-- Python 3.11+
-- PostgreSQL 15+
-- Redis 7+
-- Docker and Docker Compose (optional)
-
-### Environment Setup
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd stock-analysis-system
-   ```
-
-2. **Create environment file**
-   ```bash
-   cp .env.example .env
-   ```
-   Edit `.env` with your configuration values.
-
-3. **Install Python dependencies**
-   ```bash
-   cd backend
-   pip install -r requirements.txt
-   ```
-
-4. **Set up pre-commit hooks** (optional but recommended)
-   ```bash
-   pre-commit install
-   ```
-
-### Database Setup
-
-1. **Start PostgreSQL and Redis** (if not using Docker)
-   ```bash
-   # Using Docker
-   docker-compose up -d postgres redis
-   ```
-
-2. **Run database migrations**
-   ```bash
-   cd backend
-   alembic upgrade head
-   ```
-
-### Running the Application
-
-#### Option 1: Local Development
-```bash
-# Terminal 1: Start the FastAPI server
-cd backend
-uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
-
-# Terminal 2: Start Celery worker
-celery -A src.celery_app.celery_app worker --loglevel=info
-
-# Terminal 3: Start Celery beat scheduler
-celery -A src.celery_app.celery_app beat --loglevel=info
-
-# Terminal 4: Start Celery flower (monitoring)
-celery -A src.celery_app.celery_app flower --port=5555
-```
-
-#### Option 2: Docker Compose (推薦)
 ```bash
 # 啟動所有服務
 docker-compose up -d
 
-# 或個別啟動服務
-docker-compose up -d postgres redis  # 基礎服務
-docker-compose up -d backend          # API 服務
-docker-compose up -d celery_worker    # 背景任務工作者
-docker-compose up -d celery_beat      # 定時任務排程器
-docker-compose up -d celery_flower    # Celery 監控介面
-
-# 檢查服務狀態
+# 查看服務狀態
 docker-compose ps
-
-# 查看日誌
-docker-compose logs -f backend
-docker-compose logs -f celery_worker
 ```
 
-**重要提醒:** 
-- 使用Docker Compose時，所有API都要通過對外端口訪問 (例如 `localhost:9121` 而不是 `localhost:8000`)
-- Redis和Celery服務已正確配置，背景任務功能完全正常
-- 如果需要連接資料庫，請使用端口 `9221`
+### 服務端點
 
-### API Access
+| 服務 | 端口 | 說明 |
+|------|------|------|
+| **Frontend** | http://localhost:3000 | 前端 Web 應用 |
+| **Backend API** | http://localhost:9127 | REST API |
+| **API Docs** | http://localhost:9127/docs | Swagger 文件 |
+| **PostgreSQL** | localhost:9227 | 資料庫 |
+| **Redis** | localhost:9327 | 快取/訊息佇列 |
+| **Celery Flower** | http://localhost:9427 | 任務監控 |
+| **PgAdmin** | http://localhost:9527 | 資料庫管理 |
 
-**使用Docker Compose (推薦):**
-- **API Documentation**: http://localhost:9121/docs
-- **Alternative Documentation**: http://localhost:9121/redoc
-- **Health Check**: http://localhost:9121/api/v1/health
-- **Database**: localhost:9221 (PostgreSQL)
-- **Redis**: localhost:9321 (Redis)
-- **Celery Monitoring**: http://localhost:9421 (Flower)
-- **Frontend**: http://localhost:3000 (Nuxt.js)
+## 📊 核心功能
 
-**本機開發模式:**
-- **API Documentation**: http://localhost:8000/docs
-- **Alternative Documentation**: http://localhost:8000/redoc
-- **Health Check**: http://localhost:8000/api/v1/health
-- **Celery Monitoring**: http://localhost:5555
+### 股票資料
+- 每日收盤資料自動更新
+- 多資料來源整合 (證交所、Yahoo Finance)
+- 歷史資料查詢與匯出
 
-## API Endpoints
+### 技術分析
+- **均線計算**: MA5, MA10, MA20, MA72, MA120, MA240
+- **選股策略**:
+  - 完美多頭: MA5 > MA10 > MA20 > MA60 > MA120 > MA240
+  - 短線多頭: MA5 > MA10 > MA20
+  - 空頭趨勢: MA5 < MA10 < MA20 < MA60
 
-### Health Checks
-- `GET /api/v1/health/` - Basic health check
-- `GET /api/v1/health/detailed` - Detailed system health
-- `GET /api/v1/health/readiness` - Kubernetes readiness probe
-- `GET /api/v1/health/liveness` - Kubernetes liveness probe
+### 背景任務
+- 自動資料更新排程
+- 均線批次計算
+- 任務執行記錄與監控
 
-### Stock Data
-- `GET /api/v1/stocks/symbols` - List available stock symbols
-- `GET /api/v1/stocks/{symbol}/current` - Current stock price
-- `GET /api/v1/stocks/{symbol}/historical` - Historical price data
-- `POST /api/v1/stocks/{symbol}/update` - Trigger data update
-- `POST /api/v1/stocks/update-all` - Update all symbols
+## 🛠 維運腳本
 
-### Technical Analysis
-- `GET /api/v1/stocks/{symbol}/analysis` - Technical analysis results
-- `POST /api/v1/stocks/{symbol}/analyze` - Trigger analysis
-- `GET /api/v1/stocks/{symbol}/signals` - Trading signals
-- `POST /api/v1/stocks/signals/generate` - Generate signals
-
-## Development
-
-### Code Quality
-
-The project uses several tools to maintain code quality:
-
-- **Black**: Code formatting
-- **isort**: Import sorting
-- **flake8**: Linting
-- **mypy**: Type checking
-- **pre-commit**: Git hooks for quality checks
-
-Run quality checks:
 ```bash
-cd backend
-make format      # Format code
-make lint        # Run linting
-make type-check  # Run type checking
-make test        # Run tests
-make test-cov    # Run tests with coverage
+# 均線批次更新
+./scripts/maintenance/fast_update_ma.sh
+
+# 查看更新進度
+./scripts/maintenance/check_ma_progress.sh
+
+# 部署新功能
+./scripts/maintenance/apply_new_features.sh
 ```
 
-### Testing
+## 📖 API 文件
 
-Run tests:
+完整 API 文件請參考:
+- Swagger UI: http://localhost:9127/docs
+- 詳細說明: [backend/API_DOCUMENTATION.md](backend/API_DOCUMENTATION.md)
+
+### 主要 API 端點
+
+| 端點 | 說明 |
+|------|------|
+| `GET /api/v1/health` | 健康檢查 |
+| `GET /api/v1/stocks` | 股票清單 |
+| `GET /api/v1/stock-history/{code}` | 歷史資料 |
+| `GET /api/v1/moving-averages/{code}` | 均線資料 |
+| `GET /api/v1/stock-selection/results` | 選股結果 |
+
+## 🧪 測試
+
 ```bash
-cd backend
-pytest -v                    # Run all tests
-pytest -v --cov=src         # Run with coverage
-pytest -v tests/test_health.py  # Run specific test file
+# 後端測試
+cd backend && pytest -v
+
+# 前端測試
+cd frontend && npm run test
 ```
 
-### Database Migrations
+## 📝 開發指南
 
-Create a new migration:
+### 新增 API 端點
+1. 在 `backend/src/api/endpoints/` 建立端點檔案
+2. 在 `backend/src/services/` 實作業務邏輯
+3. 在 `backend/src/api/router.py` 註冊路由
+4. 撰寫測試於 `backend/tests/`
+
+### 新增前端頁面
+1. 在 `frontend/pages/` 建立 Vue 元件
+2. 使用 `frontend/composables/` 的共用邏輯
+3. 撰寫測試於 `frontend/tests/`
+
+## 🔧 常見問題
+
+### 容器無法啟動
 ```bash
-cd backend
-alembic revision --autogenerate -m "Description of changes"
+docker-compose down -v
+docker-compose up -d --build
 ```
 
-Apply migrations:
+### 資料庫連線失敗
 ```bash
-alembic upgrade head
+docker-compose restart postgres
+docker-compose logs postgres
 ```
 
-Rollback migration:
+### 清理快取
 ```bash
-alembic downgrade -1
+# 清理 Python 快取
+find . -name "__pycache__" -type d -exec rm -rf {} +
+
+# 清理前端快取
+rm -rf frontend/.nuxt frontend/node_modules/.cache
 ```
 
-## Configuration
+## 📄 授權
 
-### Environment Variables
-
-Key environment variables (see `.env.example` for complete list):
-
-- `DATABASE_URL`: PostgreSQL connection string
-- `REDIS_URL`: Redis connection string
-- `SECRET_KEY`: JWT secret key
-- `ALPHA_VANTAGE_API_KEY`: Alpha Vantage API key
-- `DEFAULT_STOCK_SYMBOLS`: Comma-separated list of default symbols
-
-### Technical Analysis Settings
-
-- `ANALYSIS_LOOKBACK_DAYS`: Days of historical data for analysis (default: 252)
-- `DATA_UPDATE_INTERVAL_MINUTES`: How often to update data (default: 60)
-
-## Monitoring and Logging
-
-- **Application Logs**: Structured JSON logging to files and stdout
-- **Celery Monitoring**: Flower web interface at http://localhost:5555
-- **Health Checks**: Multiple health check endpoints for monitoring
-- **Metrics**: Built-in application metrics (when enabled)
-
-## Production Deployment
-
-### Docker Production
-
-1. **Update environment variables** for production
-2. **Use production Docker Compose profile**:
-   ```bash
-   docker-compose --profile production up -d
-   ```
-
-### Key Production Considerations
-
-- Set `DEBUG=false`
-- Use strong `SECRET_KEY`
-- Configure proper CORS origins
-- Set up SSL certificates
-- Use environment-specific database credentials
-- Configure log rotation
-- Set up monitoring and alerting
-- Use Redis password authentication
-- Configure rate limiting
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make changes following code quality standards
-4. Add tests for new functionality
-5. Submit a pull request
-
-## License
-
-[Add your license here]
-
-## Support
-
-For support and questions:
-- Check the API documentation at `/docs`
-- Review the health check endpoints
-- Check application logs for errors
-- Monitor Celery tasks in Flower
-
-## Roadmap
-
-- [ ] Additional data sources integration
-- [ ] More technical indicators
-- [ ] Portfolio management features
-- [ ] Machine learning models
-- [ ] WebSocket real-time updates
-- [ ] Advanced alert system
+私有專案 - 未經授權請勿散布

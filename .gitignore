@@ -214,9 +214,18 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+package-lock.json
 
 # Frontend build output
 frontend/dist/
 frontend/build/
 frontend/.nuxt/
 .nuxt/
+
+# Temporary files in root
+*.log
+test.db
+ma_update.log
+
+# Deprecated scripts output
+scripts/deprecated/

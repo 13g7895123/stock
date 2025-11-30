@@ -1,10 +1,15 @@
-# 對外 PORT 配置 - 統一在最上面管理
-# Backend API: ${API_PORT:-8000}
-# Database: ${DB_PORT:-5432}  
-# Redis: ${REDIS_PORT:-6379}
-# Flower: ${FLOWER_PORT:-5555}
-# pgAdmin: ${PGADMIN_PORT:-9627}
-# Nginx: ${NGINX_HTTP_PORT:-80}, ${NGINX_HTTPS_PORT:-443}
+# =================
+# 對外 PORT 配置 - 統一在最上面管理 (預設值僅供開發參考，正式環境請使用 .env)
+# =================
+# Backend API:    ${API_PORT:-9127}
+# Database:       ${DB_PORT:-9227}
+# Redis:          ${REDIS_PORT:-9327}
+# Flower:         ${FLOWER_PORT:-9427}
+# pgAdmin:        ${PGADMIN_PORT:-9527}
+# Go Crawler:     ${GO_CRAWLER_PORT:-9627}
+# Frontend:       ${FRONTEND_PORT:-3000}
+# Nginx HTTP:     ${NGINX_HTTP_PORT:-80}
+# Nginx HTTPS:    ${NGINX_HTTPS_PORT:-443}
 
 services:
   # PostgreSQL Database
@@ -18,7 +23,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${DB_PORT:-9227}:5432"
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
       - ./backend/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -34,7 +39,7 @@ services:
     container_name: stock_redis
     restart: unless-stopped
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_PORT:-9327}:6379"
     volumes:
       - ./data/redis:/data
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
@@ -58,7 +63,7 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
       - DEBUG=true
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "${API_PORT:-9127}:8000"
     volumes:
       - ./backend:/app
       - ./logs:/app/logs
@@ -130,7 +135,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/1
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
     ports:
-      - "${FLOWER_PORT:-5555}:5555"
+      - "${FLOWER_PORT:-9427}:5555"
     volumes:
       - ./backend:/app
     depends_on:
@@ -148,7 +153,7 @@ services:
       PGADMIN_CONFIG_SERVER_MODE: 'False'
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
     ports:
-      - "${PGADMIN_PORT:-9627}:80"
+      - "${PGADMIN_PORT:-9527}:80"
     volumes:
       - ./data/pgadmin:/var/lib/pgadmin
     depends_on:
@@ -183,7 +188,7 @@ services:
     container_name: stock-crawler-go
     restart: unless-stopped
     ports:
-      - "${GO_CRAWLER_PORT:-8082}:8080"
+      - "${GO_CRAWLER_PORT:-9627}:8080"
     environment:
       - DATABASE_URL=postgresql://${DB_USER:-stock_user}:${DB_PASSWORD:-password}@postgres:5432/${DB_NAME:-stock_analysis}
       - DB_HOST=postgres
@@ -209,7 +214,7 @@ services:
     container_name: stock_frontend
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     environment:
       - API_URL=http://backend:8000/api/v1
       - GO_CRAWLER_URL=http://crawler-service:8080

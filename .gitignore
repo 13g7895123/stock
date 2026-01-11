@@ -1,3 +1,19 @@
+# ============================================
+# 舊代碼備份 (不提交至版本控制)
+# ============================================
+_old/
+
+# ============================================
+# 運行時產生的資料與日誌
+# ============================================
+data/
+logs/
+uploads/
+*.log
+
+# ============================================
+# Python 相關 (保留，供參考)
+# ============================================
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -119,14 +135,32 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
-# Environments
+# ============================================
+# 環境變數與敏感資訊
+# ============================================
 .env
+.env.local
+.env.production
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+secrets.json
+config.json
+
+# ============================================
+# IDE 與編輯器
+# ============================================
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+*.iws
+*.iml
+*.ipr
 
 # Spyder project settings
 .spyderproject
@@ -160,13 +194,9 @@ cython_debug/
 #*.iml
 #*.ipr
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Operating System
+# ============================================
+# 作業系統相關
+# ============================================
 .DS_Store
 .DS_Store?
 ._*
@@ -175,57 +205,68 @@ cython_debug/
 ehthumbs.db
 Thumbs.db
 
-# Project specific
-logs/
-uploads/
-temp/
-tmp/
-data/
-*.sqlite
-*.db
-
-# Docker
+# ============================================
+# Docker 相關
+# ============================================
 .dockerignore
 
-# Database migrations (keep structure, ignore data)
-alembic/versions/*.py
-!alembic/versions/__init__.py
+# ============================================
+# Go 相關
+# ============================================
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
 
-# API Keys and secrets
-.env.local
-.env.production
-secrets.json
-config.json
+# Test binary, built with `go test -c`
+*.test
 
-# Backup files
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# Build output
+bin/
+build/
+dist/
+
+# ============================================
+# 資料庫與備份
+# ============================================
+*.sqlite
+*.db
 *.bak
 *.backup
 *.orig
+*.sql.gz
 
-# Compiled translations
-*.mo
-
-# Static files (if generated)
-static/
-media/
-
-# Node.js (for frontend build tools)
+# ============================================
+# Node.js 相關 (保留，供參考)
+# ============================================
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 package-lock.json
 
-# Frontend build output
-frontend/dist/
-frontend/build/
-frontend/.nuxt/
-.nuxt/
+# ============================================
+# 臨時檔案
+# ============================================
+temp/
+tmp/
+*.tmp
+*.temp
 
-# Temporary files in root
-*.log
-test.db
-ma_update.log
-
-# Deprecated scripts output
-scripts/deprecated/
+# ============================================
+# 測試與覆蓋率報告
+# ============================================
+coverage/
+.coverage
+*.cover
+htmlcov/
+.pytest_cache/
+.cache

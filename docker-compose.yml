@@ -1,235 +1,76 @@
-# =================
-# 對外 PORT 配置 - 統一在最上面管理 (預設值僅供開發參考，正式環境請使用 .env)
-# =================
-# Backend API:    ${API_PORT:-9127}
-# Database:       ${DB_PORT:-9227}
-# Redis:          ${REDIS_PORT:-9327}
-# Flower:         ${FLOWER_PORT:-9427}
-# pgAdmin:        ${PGADMIN_PORT:-9527}
-# Go Crawler:     ${GO_CRAWLER_PORT:-9627}
-# Frontend:       ${FRONTEND_PORT:-3000}
-# Nginx HTTP:     ${NGINX_HTTP_PORT:-80}
-# Nginx HTTPS:    ${NGINX_HTTPS_PORT:-443}
+# Stock Crawler Service - Docker Compose Configuration
+# 高效能台灣股票資料爬蟲服務
+
+version: '3.8'
 
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:15
-    container_name: stock_postgres
+    image: postgres:15-alpine
+    container_name: crawler_postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME:-stock_analysis}
       POSTGRES_USER: ${DB_USER:-stock_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
-      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
     ports:
-      - "${DB_PORT:-9227}:5432"
+      - "${DB_PORT:-9222}:5432"
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
-      - ./backend/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./crawler-service/deployments/init-db.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U stock_user -d stock_analysis"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-stock_user} -d ${DB_NAME:-stock_analysis}"]
       interval: 10s
       timeout: 5s
       retries: 5
-
-  # Redis for Celery and caching
-  redis:
-    image: redis:7-alpine
-    container_name: stock_redis
-    restart: unless-stopped
-    ports:
-      - "${REDIS_PORT:-9327}:6379"
-    volumes:
-      - ./data/redis:/data
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-
-  # FastAPI Backend
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: stock_backend
-    restart: unless-stopped
-    environment:
-      - DATABASE_URL=postgresql://${DB_USER:-stock_user}:${DB_PASSWORD:-password}@postgres:5432/${DB_NAME:-stock_analysis}
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/1
-      - CELERY_RESULT_BACKEND=redis://redis:6379/2
-      - DEBUG=true
-    ports:
-      - "${API_PORT:-9127}:8000"
-    volumes:
-      - ./backend:/app
-      - ./logs:/app/logs
-      - ./uploads:/app/uploads
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # Celery Worker
-  celery_worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: stock_celery_worker
-    restart: unless-stopped
-    environment:
-      - DATABASE_URL=postgresql://${DB_USER:-stock_user}:${DB_PASSWORD:-password}@postgres:5432/${DB_NAME:-stock_analysis}
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/1
-      - CELERY_RESULT_BACKEND=redis://redis:6379/2
-    volumes:
-      - ./backend:/app
-      - ./logs:/app/logs
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: celery -A src.celery_app.celery_app worker --loglevel=info --concurrency=2
-
-  # Celery Beat (Scheduler)
-  celery_beat:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: stock_celery_beat
-    restart: unless-stopped
-    environment:
-      - DATABASE_URL=postgresql://${DB_USER:-stock_user}:${DB_PASSWORD:-password}@postgres:5432/${DB_NAME:-stock_analysis}
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/1
-      - CELERY_RESULT_BACKEND=redis://redis:6379/2
-    volumes:
-      - ./backend:/app
-      - ./logs:/app/logs
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: celery -A src.celery_app.celery_app beat --loglevel=info
-
-  # Celery Flower (Monitoring)
-  celery_flower:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: stock_celery_flower
-    restart: unless-stopped
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/1
-      - CELERY_RESULT_BACKEND=redis://redis:6379/2
-    ports:
-      - "${FLOWER_PORT:-9427}:5555"
-    volumes:
-      - ./backend:/app
-    depends_on:
-      - redis
-    command: celery -A src.celery_app.celery_app flower --port=5555
-
-  # pgAdmin - PostgreSQL GUI管理工具
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: stock_pgadmin
-    restart: unless-stopped
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@stock.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
-      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
-    ports:
-      - "${PGADMIN_PORT:-9527}:80"
-    volumes:
-      - ./data/pgadmin:/var/lib/pgadmin
-    depends_on:
-      - postgres
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/misc/ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # Nginx (Optional, for production)
-  nginx:
-    image: nginx:alpine
-    container_name: stock_nginx
-    restart: unless-stopped
-    ports:
-      - "${NGINX_HTTP_PORT:-80}:80"
-      - "${NGINX_HTTPS_PORT:-443}:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - backend
-    profiles:
-      - production
+    networks:
+      - crawler-network
 
   # Go Crawler Service
   crawler-service:
     build:
       context: ./crawler-service
       dockerfile: deployments/Dockerfile
-    container_name: stock-crawler-go
+    image: stock-crawler-service:latest
+    container_name: stock_crawler_dashboard
     restart: unless-stopped
     ports:
-      - "${GO_CRAWLER_PORT:-9627}:8080"
+      - "${CRAWLER_PORT:-9627}:8082"
     environment:
-      - DATABASE_URL=postgresql://${DB_USER:-stock_user}:${DB_PASSWORD:-password}@postgres:5432/${DB_NAME:-stock_analysis}
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=${DB_USER:-stock_user}
-      - DB_PASSWORD=${DB_PASSWORD:-password}
-      - DB_NAME=${DB_NAME:-stock_analysis}
-      - SERVER_PORT=8080
+      # Database Configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-stock_user}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ${DB_NAME:-stock_analysis}
+      
+      # Application Configuration
+      APP_PORT: 8082
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      
+      # Crawler Configuration
+      MAX_WORKERS: ${MAX_WORKERS:-20}
+      CRAWLER_TIMEOUT: ${CRAWLER_TIMEOUT:-30}
+      RETRY_ATTEMPTS: ${RETRY_ATTEMPTS:-3}
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+      - ./crawler-service/configs:/app/configs:ro
+    networks:
+      - crawler-network
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/health"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
-
-  # Frontend (Nuxt)
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: stock_frontend
-    restart: unless-stopped
-    ports:
-      - "${FRONTEND_PORT:-3000}:3000"
-    environment:
-      - API_URL=http://backend:8000/api/v1
-      - GO_CRAWLER_URL=http://crawler-service:8080
-    depends_on:
-      - backend
-      - crawler-service
-
-# 使用本地路徑作為volumes，不需要Docker管理的volumes
-# volumes:
-#   postgres_data:
-#     driver: local
-#   redis_data:
-#     driver: local
+      start_period: 40s
 
 networks:
-  default:
-    name: stock_analysis_network
+  crawler-network:
     driver: bridge
+
+volumes:
+  postgres-data:

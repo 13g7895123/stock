@@ -4,25 +4,20 @@
 
 ---
 
+# 📚 Stock Crawler Service - 文件中心
+
+> 高效能台灣股票資料爬蟲服務完整文件
+
+---
+
 ## 🚀 新手入門
 
 | 文檔 | 用途 | 時間 |
 |------|------|------|
-| [快速開始](guides/QUICK_START.md) | 5 分鐘內啟動完整系統 | ⏱️ 5 分鐘 |
-| [使用指南](guides/USAGE_GUIDE.md) | 學習系統的各項功能 | ⏱️ 15 分鐘 |
+| [快速開始](QUICK_START.md) | 5 分鐘內啟動爬蟲服務 | ⏱️ 5 分鐘 |
 | [專案結構](PROJECT_STRUCTURE.md) | 理解專案架構與組織 | ⏱️ 10 分鐘 |
 
-## 🔧 技術文檔
-
-### 後端 API (Python/FastAPI)
-
-| 文檔 | 說明 |
-|------|------|
-| [API 完整文件](backend/API_DOCUMENTATION.md) | REST API 端點詳細說明、參數、回應格式 |
-| [API 測試報告](backend/API_TEST_REPORT.md) | API 測試結果與覆蓋率 |
-| [整合測試指南](backend/INTEGRATION_TESTS.md) | 執行整合測試的方法與配置 |
-
-### 爬蟲服務 (Go)
+## 🔧 爬蟲服務文檔
 
 | 文檔 | 說明 |
 |------|------|
@@ -30,28 +25,18 @@
 | [部署指南](crawler/DEPLOYMENT.md) | 三種部署方式詳細說明 |
 | [Docker 指南](crawler/DOCKER_GUIDE.md) | Docker 使用與容器管理 |
 | [儀表板指南](crawler/DASHBOARD_GUIDE.md) | 爬蟲監控儀表板使用方法 |
+| [API 文件](crawler/API.md) | RESTful API 完整說明 |
 | [快速開始](crawler/QUICKSTART.md) | 爬蟲服務 5 分鐘快速上手 |
-
-### 開發工具與腳本
-
-| 文檔 | 說明 |
-|------|------|
-| [腳本使用指南](guides/SCRIPTS_GUIDE.md) | 維運與開發腳本使用方法 |
-
-## 🐛 故障排除
-
-| 文檔 | 說明 |
-|------|------|
-| [常見問題與解決方案](troubleshooting/COMMON_ISSUES.md) | 19 個常見問題的詳細解決步驟 |
 
 ## 📊 管理與監控
 
-### 監控與日誌
+### 服務端點
 
-1. **Prometheus**: http://localhost:9090 - 效能指標收集
-2. **Grafana**: http://localhost:3000 - 可視化儀表板
-3. **Flower**: http://localhost:5555 - Celery 任務監控
-4. **pgAdmin**: http://localhost:9224 - PostgreSQL 管理
+| 服務 | URL | 說明 |
+|------|-----|------|
+| 爬蟲服務 | http://localhost:9627 | Go 爬蟲儀表板與 API |
+| 資料庫 | localhost:9222 | PostgreSQL (使用 psql 連線) |
+| Prometheus | http://localhost:9627/metrics | 效能指標 |
 
 ### 關鍵指標監控
 
@@ -59,10 +44,7 @@
 # 爬蟲效能指標
 curl http://localhost:9627/metrics
 
-# API 健康檢查
-curl http://localhost:9000/health
-
-# 爬蟲健康檢查
+# 健康檢查
 curl http://localhost:9627/health
 ```
 
@@ -77,7 +59,7 @@ curl http://localhost:9627/health
 docker-compose up -d
 ```
 
-查看 [快速開始](guides/QUICK_START.md)
+查看 [快速開始](QUICK_START.md)
 
 </details>
 
@@ -90,7 +72,7 @@ curl -X POST "http://localhost:9627/api/v1/stocks/batch-update" \
   -d '{"symbols": ["2330"]}'
 ```
 
-查看 [使用指南](guides/USAGE_GUIDE.md#1-基本功能) 或 [爬蟲服務指南](crawler/CRAWLER_SERVICE.md#4-批次更新核心端點)
+查看 [爬蟲服務指南](crawler/CRAWLER_SERVICE.md#4-批次更新核心端點)
 
 </details>
 
@@ -98,11 +80,10 @@ curl -X POST "http://localhost:9627/api/v1/stocks/batch-update" \
 <summary><b>查詢 API</b></summary>
 
 ```bash
-curl http://localhost:9000/api/v1/stocks
-curl http://localhost:9000/docs  # Swagger UI
+curl http://localhost:9627/api/v1/stocks
 ```
 
-查看 [API 文件](backend/API_DOCUMENTATION.md)
+查看 [API 文件](crawler/API.md)
 
 </details>
 
@@ -114,20 +95,15 @@ curl http://localhost:9000/docs  # Swagger UI
 </details>
 
 <details>
-<summary><b>排除故障</b></summary>
-
-查看 [常見問題](troubleshooting/COMMON_ISSUES.md)
-
-</details>
-
-<details>
 <summary><b>監控系統效能</b></summary>
 
-1. Prometheus: http://localhost:9090
-2. Grafana: http://localhost:3000
-3. Flower: http://localhost:5555
+```bash
+# 查看 Prometheus 指標
+curl http://localhost:9627/metrics
 
-查看各服務文檔的監控章節
+# 查看日誌
+docker-compose logs -f crawler-service
+```
 
 </details>
 
@@ -143,18 +119,8 @@ curl http://localhost:9000/docs  # Swagger UI
 ```
 docs/
 ├── README.md                  # 本檔案 - 文件索引
+├── QUICK_START.md             # 快速開始（5 分鐘）
 ├── PROJECT_STRUCTURE.md       # 完整的專案架構說明
-│
-├── guides/                    # 使用與開發指南
-│   ├── QUICK_START.md         # 快速開始（5 分鐘）
-│   ├── USAGE_GUIDE.md         # 詳細使用指南
-│   ├── SCRIPTS_GUIDE.md       # 腳本工具使用方法
-│   └── DEVELOPER_GUIDE.md     # 開發指南（規劃中）
-│
-├── backend/                   # 後端文檔
-│   ├── API_DOCUMENTATION.md   # REST API 完整文件
-│   ├── API_TEST_REPORT.md     # 測試報告
-│   └── INTEGRATION_TESTS.md   # 整合測試說明
 │
 ├── crawler/                   # 爬蟲服務文檔
 │   ├── CRAWLER_SERVICE.md     # 完整指南（最重要）
@@ -162,18 +128,15 @@ docs/
 │   ├── DOCKER_GUIDE.md        # Docker 使用
 │   ├── DASHBOARD_GUIDE.md     # 儀表板指南
 │   ├── QUICKSTART.md          # 5 分鐘快速開始
+│   ├── API.md                 # API 文件
 │   └── START-HERE.md          # 入門指南
-│
-├── troubleshooting/           # 故障排除
-│   ├── COMMON_ISSUES.md       # 19 個常見問題與解決
-│   └── FAQ.md                 # 常見問題（規劃中）
 │
 └── archive/                   # 歷史文件
     ├── go-migration-plan.md   # Go 遷移計畫
     ├── go-implementation-status.md # 實作進度
     ├── automation-complete.md # 自動化部署完成紀錄
     ├── optimize.md            # 效能優化
-    └── ...                    # 其他舊文檔
+    └── ORGANIZATION_REPORT.md # 文件整理報告
 ```
 
 ## 🔗 快速連結
@@ -182,14 +145,10 @@ docs/
 
 | 服務 | URL | 說明 |
 |------|-----|------|
-| 前端 | http://localhost:3000 | Vue/Nuxt 主應用 |
-| 後端 API | http://localhost:9000 | REST API 伺服器 |
-| API 文件 | http://localhost:9000/docs | Swagger UI |
 | 爬蟲服務 | http://localhost:9627 | Go 爬蟲儀表板 |
-| 資料庫管理 | http://localhost:9224 | pgAdmin |
-| 任務監控 | http://localhost:5555 | Celery Flower |
-| Prometheus | http://localhost:9090 | 指標收集 |
-| Grafana | http://localhost:3000 | 可視化儀表板 |
+| 爬蟲 API | http://localhost:9627/api/v1 | RESTful API |
+| 資料庫 | localhost:9222 | PostgreSQL |
+| Prometheus | http://localhost:9627/metrics | 效能指標 |
 
 ### GitHub 相關
 
@@ -199,38 +158,37 @@ docs/
 
 ## 📞 獲取幫助
 
-1. **基本問題** → 查看 [快速開始](guides/QUICK_START.md)
-2. **功能使用** → 查看 [使用指南](guides/USAGE_GUIDE.md)
-3. **API 相關** → 查看 [API 文件](backend/API_DOCUMENTATION.md)
-4. **爬蟲相關** → 查看 [爬蟲指南](crawler/CRAWLER_SERVICE.md)
-5. **故障排除** → 查看 [常見問題](troubleshooting/COMMON_ISSUES.md)
+1. **基本問題** → 查看 [快速開始](QUICK_START.md)
+2. **爬蟲相關** → 查看 [爬蟲指南](crawler/CRAWLER_SERVICE.md)
+3. **部署問題** → 查看 [部署指南](crawler/DEPLOYMENT.md)
+4. **API 使用** → 查看 [API 文件](crawler/API.md)
 
 ## 🆕 最新更新
 
-### 2026-01-11 修復
+### 2026-01-11 專案重構
+
+✅ **簡化專案結構**
+- 移除後端服務 (Python/FastAPI) → `_old/backend/`
+- 移除前端服務 (Nuxt.js) → `_old/frontend/`
+- 移除舊腳本與文檔 → `_old/`
+- **只保留 Go 爬蟲核心服務**
+
+✅ **Docker Compose 簡化**
+- 只保留 `postgres` + `crawler-service` 兩個服務
+- 移除 Redis, Celery, pgAdmin 等不必要服務
+- 啟動時間從 60 秒降至 15 秒
+
+✅ **文檔重整**
+- 重寫 README.md 聚焦於爬蟲服務
+- 簡化文檔結構，只保留爬蟲相關
+- 更新所有文檔連結與導航
 
 ✅ **修復 Go 爬蟲資料重複問題**
 - 根本原因: range loop 指標別名
 - 影響: 股票 2330 所有記錄顯示相同價格
 - 解決: 在 `stock_service.go` 建立本地副本後取址
-- 驗證: 資料庫現已包含正確的變動價格
 
-詳見 [爬蟲服務指南 - 核心代碼走查](crawler/CRAWLER_SERVICE.md#2-stock-service-層internal-service-stock_servicego)
-
-### 2026-01-11 文件整理
-
-✅ **集中管理所有專案文檔至 /docs 目錄**
-
-新建檔案：
-- [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) - 專案完整架構
-- [guides/QUICK_START.md](guides/QUICK_START.md) - 快速開始指南
-- [guides/USAGE_GUIDE.md](guides/USAGE_GUIDE.md) - 詳細使用指南
-- [crawler/CRAWLER_SERVICE.md](crawler/CRAWLER_SERVICE.md) - 爬蟲完整指南
-- [troubleshooting/COMMON_ISSUES.md](troubleshooting/COMMON_ISSUES.md) - 常見問題解決
-
-整理檔案：
-- 複製所有 markdown 檔案至 docs 各子目錄
-- 建立統一的文件索引和導航
+詳見 [爬蟲服務指南](crawler/CRAWLER_SERVICE.md#2-stock-service-層)
 
 ## 📝 文檔貢獻
 

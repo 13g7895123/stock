@@ -379,7 +379,7 @@
         </div>
     </div>
 
-    <
+    <style>
         .loading {
             text-align: center;
             padding: 40px;
@@ -729,6 +729,7 @@
                 console.error('爬取失敗:', err);
                 alert(`爬取失敗: ${err.message}`);
             }
+        }
 
         // 查看股票详情
         async function viewStockDetail(stockCode, stockName) {
@@ -838,7 +839,6 @@
             if (event.target === modal) {
                 closeModal();
             }
-        }
         }
     </script>
 </body>

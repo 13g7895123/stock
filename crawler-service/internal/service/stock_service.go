@@ -79,19 +79,22 @@ func (s *StockService) FetchStockDaily(ctx context.Context, symbol string, broke
 	// 轉換為儲存格式
 	dbRecords := make([]storage.StockDailyData, len(validRecords))
 	for i, record := range validRecords {
-		dataQuality := record.DataQuality
+		// Create local copies to avoid pointer aliasing issues
+		rec := record // Important: create a copy of the loop variable
+		
+		dataQuality := rec.DataQuality
 		if dataQuality == "" {
 			dataQuality = "raw"
 		}
 		dbRecords[i] = storage.StockDailyData{
-			StockCode:    record.StockCode,
-			TradeDate:    record.TradeDate,
-			OpenPrice:    &record.OpenPrice,
-			HighPrice:    &record.HighPrice,
-			LowPrice:     &record.LowPrice,
-			ClosePrice:   &record.ClosePrice,
-			Volume:       &record.Volume,
-			Turnover:     &record.Turnover,
+			StockCode:    rec.StockCode,
+			TradeDate:    rec.TradeDate,
+			OpenPrice:    &rec.OpenPrice,
+			HighPrice:    &rec.HighPrice,
+			LowPrice:     &rec.LowPrice,
+			ClosePrice:   &rec.ClosePrice,
+			Volume:       &rec.Volume,
+			Turnover:     &rec.Turnover,
 			DataSource:   result.Source,
 			DataQuality:  &dataQuality,
 			IsValidated:  true,

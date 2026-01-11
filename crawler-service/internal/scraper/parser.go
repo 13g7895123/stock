@@ -59,101 +59,104 @@ if len(sections) < 5 {
 return nil, fmt.Errorf("invalid response format: expected at least 5 sections (date, open, high, low, close), got %d", len(sections))
 }
 
-// 步驟 2: 解析每個區段
-// sections[0] = 日期陣列 (date1,date2,...)
-// sections[1] = 開盤價陣列 (open1,open2,...)
-// sections[2] = 最高價陣列 (high1,high2,...)
-// sections[3] = 最低價陣列 (low1,low2,...)
-// sections[4] = 收盤價陣列 (close1,close2,...)
-// sections[5] = 成交量陣列 (vol1,vol2,...) 可能不存在
+	// 步驟 2: 解析每個區段
+	// 正確格式（實際驗證結果）: [日期] [開盤價] [最高價] [最低價] [收盤價] [成交量]
+	// sections[0] = 日期陣列 (date1,date2,...)
+	// sections[1] = 開盤價陣列 (open1,open2,...)
+	// sections[2] = 最高價陣列 (high1,high2,...)
+	// sections[3] = 最低價陣列 (low1,low2,...)
+	// sections[4] = 收盤價陣列 (close1,close2,...)
+	// sections[5] = 成交量陣列 (vol1,vol2,...)
 
-dates := strings.Split(sections[0], ",")
-opens := strings.Split(sections[1], ",")
-highs := strings.Split(sections[2], ",")
-lows := strings.Split(sections[3], ",")
-closes := strings.Split(sections[4], ",")
+	dates := strings.Split(sections[0], ",")
+	opens := strings.Split(sections[1], ",")
+	highs := strings.Split(sections[2], ",")
+	lows := strings.Split(sections[3], ",")
+	closes := strings.Split(sections[4], ",")
+	
+	var volumes []string
+	if len(sections) >= 6 {
+		volumes = strings.Split(sections[5], ",")
+	} else {
+		return nil, fmt.Errorf("missing volume data")
+	}
 
-var volumes []string
-if len(sections) >= 6 {
-volumes = strings.Split(sections[5], ",")
-}
+	// 驗證各陣列長度一致
+	numRecords := len(dates)
+	if len(volumes) != numRecords || len(opens) != numRecords || len(highs) != numRecords || len(lows) != numRecords || len(closes) != numRecords {
+		return nil, fmt.Errorf("inconsistent data length: dates=%d, volumes=%d, opens=%d, highs=%d, lows=%d, closes=%d",
+			len(dates), len(volumes), len(opens), len(highs), len(lows), len(closes))
+	}
 
-// 驗證各陣列長度一致
-numRecords := len(dates)
-if len(opens) != numRecords || len(highs) != numRecords || len(lows) != numRecords || len(closes) != numRecords {
-return nil, fmt.Errorf("inconsistent data length: dates=%d, opens=%d, highs=%d, lows=%d, closes=%d",
-len(dates), len(opens), len(highs), len(lows), len(closes))
-}
+	// 步驟 3: 逐筆組裝資料
+	var result []DailyData
 
-// 步驟 3: 逐筆組裝資料
-var result []DailyData
+	for i := 0; i < numRecords; i++ {
+		// 解析日期
+		dateStr := strings.TrimSpace(dates[i])
+		if dateStr == "" {
+			continue
+		}
 
-for i := 0; i < numRecords; i++ {
-// 解析日期
-dateStr := strings.TrimSpace(dates[i])
-if dateStr == "" {
-continue
-}
+		tradeDate, err := p.parseDate(dateStr)
+		if err != nil {
+			continue // 跳過無效日期
+		}
 
-tradeDate, err := p.parseDate(dateStr)
-if err != nil {
-continue // 跳過無效日期
-}
+		// 解析價格
+		openPrice, err := parseFloat(opens[i])
+		if err != nil {
+			continue
+		}
 
-// 解析價格
-openPrice, err := parseFloat(opens[i])
-if err != nil {
-continue
-}
+		highPrice, err := parseFloat(highs[i])
+		if err != nil {
+			continue
+		}
 
-highPrice, err := parseFloat(highs[i])
-if err != nil {
-continue
-}
+		lowPrice, err := parseFloat(lows[i])
+		if err != nil {
+			continue
+		}
 
-lowPrice, err := parseFloat(lows[i])
-if err != nil {
-continue
-}
+		closePrice, err := parseFloat(closes[i])
+		if err != nil {
+			continue
+		}
 
-closePrice, err := parseFloat(closes[i])
-if err != nil {
-continue
-}
+		// 解析成交量（可能不存在）
+		var volume int64
+		if i < len(volumes) {
+			if vol, err := parseInt(volumes[i]); err == nil {
+				volume = vol
+			}
+		}
 
-// 解析成交量（可能不存在）
-var volume int64
-if i < len(volumes) {
-if vol, err := parseInt(volumes[i]); err == nil {
-volume = vol
-}
-}
+		// 基本驗證：價格必須為正，且最低價 <= 最高價
+		if openPrice > 0 && highPrice > 0 && lowPrice > 0 && closePrice > 0 && volume >= 0 {
+			if lowPrice <= highPrice {
+				data := DailyData{
+					StockCode:   stockCode,
+					TradeDate:   tradeDate,
+					OpenPrice:   openPrice,
+					HighPrice:   highPrice,
+					LowPrice:    lowPrice,
+					ClosePrice:  closePrice,
+					Volume:      volume,
+					DataSource:  "go_broker_crawler",
+					DataQuality: "corrected_daily",
+				}
 
-// 基本驗證：價格必須為正，且最低價 <= 最高價
-if openPrice > 0 && highPrice > 0 && lowPrice > 0 && closePrice > 0 && volume >= 0 {
-if lowPrice <= highPrice {
-data := DailyData{
-StockCode:   stockCode,
-TradeDate:   tradeDate,
-OpenPrice:   openPrice,
-HighPrice:   highPrice,
-LowPrice:    lowPrice,
-ClosePrice:  closePrice,
-Volume:      volume,
-DataSource:  "go_broker_crawler",
-DataQuality: "corrected_daily",
-}
+				result = append(result, data)
+			}
+		}
+	}
 
-result = append(result, data)
-}
-}
-}
+	if len(result) == 0 {
+		return nil, fmt.Errorf("no valid data parsed")
+	}
 
-if len(result) == 0 {
-return nil, fmt.Errorf("no valid data parsed")
-}
-
-return result, nil
+	return result, nil
 }
 
 // parseDate 解析日期（支援西元年格式: YYYY/MM/DD）

@@ -26,6 +26,7 @@ func NewRouter(config *RouterConfig) http.Handler {
 	// 創建處理器
 	stockHandler := handlers.NewStockHandler(config.StockService)
 	batchHandler := handlers.NewBatchHandler(config.BatchService)
+	statsHandler := handlers.NewStatsHandler(config.Repository)
 	healthHandler := handlers.NewHealthHandler(
 		config.BrokerManager,
 		config.Repository,
@@ -34,6 +35,10 @@ func NewRouter(config *RouterConfig) http.Handler {
 
 	// 創建基礎路由器
 	mux := http.NewServeMux()
+
+	// 靜態文件服務（監控面板）
+	fs := http.FileServer(http.Dir("./web"))
+	mux.Handle("/", fs)
 
 	// 健康檢查
 	mux.HandleFunc("/health", healthHandler.HealthCheck)
@@ -77,6 +82,9 @@ func NewRouter(config *RouterConfig) http.Handler {
 
 	// Worker 統計
 	mux.HandleFunc("/api/v1/workers/stats", batchHandler.GetWorkerStats)
+
+	// 統計資料
+	mux.HandleFunc("/api/v1/stats/stocks-summary", statsHandler.GetStocksSummary)
 
 	// Prometheus metrics（如果啟用）
 	// mux.Handle("/metrics", promhttp.Handler())

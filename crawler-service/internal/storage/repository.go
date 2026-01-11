@@ -39,7 +39,18 @@ type Repository interface {
 	// Utility operations
 	CheckDataExists(ctx context.Context, stockCode string, tradeDate time.Time) (bool, error)
 	GetDataQualityStats(ctx context.Context, stockCode string) (map[string]int, error)
+	GetStocksSummary(ctx context.Context) ([]StockSummaryItem, error)
 	Close() error
+}
+
+// StockSummaryItem 股票統計項目
+type StockSummaryItem struct {
+	StockCode   string  `db:"stock_code" json:"stock_code"`
+	StockName   string  `db:"stock_name" json:"stock_name"`
+	RecordCount int     `db:"record_count" json:"record_count"`
+	LatestDate  *string `db:"latest_date" json:"latest_date"`
+	FirstDate   *string `db:"first_date" json:"first_date"`
+	DataSource  *string `db:"data_source" json:"data_source"`
 }
 
 // PostgresRepository implements the Repository interface using PostgreSQL
@@ -518,6 +529,35 @@ func (r *PostgresRepository) GetDataQualityStats(ctx context.Context, stockCode 
 	}
 
 	return stats, nil
+}
+
+// GetStocksSummary 獲取所有股票的統計資料
+func (r *PostgresRepository) GetStocksSummary(ctx context.Context) ([]StockSummaryItem, error) {
+	var summary []StockSummaryItem
+	query := `
+		SELECT 
+			s.stock_code,
+			s.stock_name,
+			COALESCE(COUNT(sd.id), 0) as record_count,
+			TO_CHAR(MAX(sd.trade_date), 'YYYY-MM-DD') as latest_date,
+			TO_CHAR(MIN(sd.trade_date), 'YYYY-MM-DD') as first_date,
+			MAX(sd.data_source) as data_source
+		FROM stocks s
+		LEFT JOIN stock_daily_data sd ON s.stock_code = sd.stock_code
+		WHERE s.is_active = true
+		GROUP BY s.stock_code, s.stock_name
+		ORDER BY s.stock_code
+	`
+
+	if err := r.db.DB().SelectContext(ctx, &summary, query); err != nil {
+		return nil, fmt.Errorf("failed to get stocks summary: %w", err)
+	}
+
+	logger.Info("Retrieved stocks summary",
+		zap.Int("count", len(summary)),
+	)
+
+	return summary, nil
 }
 
 // Close closes the database connection

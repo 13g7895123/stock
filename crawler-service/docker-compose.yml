@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: crawler_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: stock_analysis
+      POSTGRES_USER: stock_user
+      POSTGRES_PASSWORD: password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    ports:
+      - "9221:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stock_user -d stock_analysis"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Go Crawler Service with Dashboard
+  crawler-service:
+    image: stock-crawler-service:latest
+    container_name: stock_crawler_dashboard
+    restart: unless-stopped
+    ports:
+      - "9627:8080"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=stock_user
+      - DB_PASSWORD=password
+      - DB_NAME=stock_analysis
+      - SERVER_PORT=8080
+      - LOG_LEVEL=info
+      - MAX_WORKERS=100
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  default:
+    name: crawler_network
+    driver: bridge

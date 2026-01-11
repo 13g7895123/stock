@@ -46,6 +46,9 @@ COPY --from=builder /build/crawler-service /app/crawler-service
 # 複製配置檔案
 COPY --from=builder /build/configs /app/configs
 
+# 複製監控面板（靜態文件）
+COPY --from=builder /build/web /app/web
+
 # 修改擁有者
 RUN chown -R appuser:appuser /app
 

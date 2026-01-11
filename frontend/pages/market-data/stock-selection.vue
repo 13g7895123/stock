@@ -59,6 +59,30 @@
               </div>
             </div>
 
+            <!-- 股票代號搜尋 -->
+            <div class="flex items-center gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl px-4 py-3">
+              <div class="p-2 bg-orange-500 rounded-lg">
+                <Icon name="mdi:magnify" class="text-xl text-white" />
+              </div>
+              <div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">股票搜尋</div>
+                <input
+                  v-model="searchQuery"
+                  type="text"
+                  placeholder="輸入代號或名稱"
+                  class="bg-transparent text-gray-900 dark:text-white font-semibold focus:outline-none w-32"
+                  @input="handleSearch"
+                />
+              </div>
+              <button
+                v-if="searchQuery"
+                @click="clearSearch"
+                class="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full transition-colors"
+              >
+                <Icon name="mdi:close" class="text-gray-500" />
+              </button>
+            </div>
+
             <!-- 重新整理按鈕 -->
             <button
               @click="refreshResults"
@@ -192,13 +216,22 @@
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
           <!-- 策略說明 -->
           <div v-if="getCurrentStrategy()" class="p-6 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
-            <div class="flex items-center gap-3 mb-3">
-              <div class="p-2 bg-blue-500 rounded-lg">
-                <Icon :name="getStrategyIcon(activeTab)" class="text-xl text-white" />
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-3">
+                <div class="p-2 bg-blue-500 rounded-lg">
+                  <Icon :name="getStrategyIcon(activeTab)" class="text-xl text-white" />
+                </div>
+                <h3 class="text-xl font-bold text-gray-900 dark:text-white">
+                  {{ getCurrentStrategy().name }}
+                </h3>
               </div>
-              <h3 class="text-xl font-bold text-gray-900 dark:text-white">
-                {{ getCurrentStrategy().name }}
-              </h3>
+              <!-- 搜尋結果提示 -->
+              <div v-if="searchQuery" class="flex items-center gap-2 px-3 py-1 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                <Icon name="mdi:filter" class="text-orange-500" />
+                <span class="text-sm text-orange-700 dark:text-orange-300">
+                  搜尋「{{ searchQuery }}」：{{ getCurrentStocks().length }} 筆結果
+                </span>
+              </div>
             </div>
             <p class="text-gray-600 dark:text-gray-400 mb-2">
               {{ getCurrentStrategy().description }}
@@ -348,6 +381,7 @@ const selectedDate = ref('')
 const latestTradingDate = ref('')
 const selectionResults = ref(null)
 const activeTab = ref('perfect_bull')
+const searchQuery = ref('')
 
 // Tab 配置
 const tabs = [
@@ -466,7 +500,28 @@ const getCurrentStrategy = () => {
 // 獲取當前股票列表
 const getCurrentStocks = () => {
   const strategy = getCurrentStrategy()
-  return strategy?.stocks || []
+  const stocks = strategy?.stocks || []
+  
+  // 如果有搜尋關鍵字，進行過濾
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.trim().toLowerCase()
+    return stocks.filter(stock => 
+      stock.stock_code.toLowerCase().includes(query) ||
+      stock.stock_name.toLowerCase().includes(query)
+    )
+  }
+  
+  return stocks
+}
+
+// 處理搜尋輸入
+const handleSearch = () => {
+  // 即時過濾，不需要額外處理
+}
+
+// 清除搜尋
+const clearSearch = () => {
+  searchQuery.value = ''
 }
 
 // 獲取 Tab 計數

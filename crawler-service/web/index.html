@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股票爬蟲監控面板</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card h3 {
+            color: #666;
+            font-size: 14px;
+            font-weight: normal;
+            margin-bottom: 10px;
+        }
+
+        .stat-card .value {
+            color: #333;
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        .stat-card .value.success {
+            color: #10b981;
+        }
+
+        .stat-card .value.primary {
+            color: #667eea;
+        }
+
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 10px 15px;
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #f9fafb;
+        }
+
+        th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        th.sortable {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        th.sortable:hover {
+            background: #f3f4f6;
+        }
+
+        th.sortable::after {
+            content: ' ↕';
+            opacity: 0.3;
+        }
+
+        th.sorted-asc::after {
+            content: ' ↑';
+            opacity: 1;
+            color: #667eea;
+        }
+
+        th.sorted-desc::after {
+            content: ' ↓';
+            opacity: 1;
+            color: #667eea;
+        }
+
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #f3f4f6;
+            color: #4b5563;
+            font-size: 14px;
+        }
+
+        tbody tr:hover {
+            background: #f9fafb;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .badge-success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .badge-info {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .btn-detail {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.3s;
+        }
+
+        .btn-detail:hover {
+            background: #5568d3;
+        }
+
+        /* 弹窗样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 2% auto;
+            padding: 0;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 1200px;
+            max-height: 90vh;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .close {
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .close:hover {
+            opacity: 0.8;
+        }
+
+        .modal-body {
+            padding: 30px;
+            max-height: calc(90vh - 80px);
+            overflow-y: auto;
+        }
+
+        .detail-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .detail-stat-card {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .detail-stat-card h4 {
+            margin: 0 0 5px 0;
+            color: #666;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+
+        .detail-stat-card .value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .history-table th {
+            background: #f9fafb;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            font-size: 12px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .history-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 13px;
+        }
+
+        .history-table tr:hover {
+            background: #f9fafb;
+        }
+    </style>
+<!-- 详情弹窗 -->
+    <div id="detailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">股票详情</h2>
+                <span class="close" onclick="closeModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="modalLoading" class="loading">
+                    <div class="spinner"></div>
+                    <p>載入中...</p>
+                </div>
+                <div id="modalError" class="error" style="display: none;"></div>
+                <div id="modalContent" style="display: none;">
+                    <div class="detail-stats" id="detailStats"></div>
+                    <h3 style="margin-top: 30px; margin-bottom: 15px;">歷史資料</h3>
+                    <div style="overflow-x: auto;">
+                        <table class="history-table" id="historyTable">
+                            <thead>
+                                <tr>
+                                    <th>日期</th>
+                                    <th>開盤</th>
+                                    <th>最高</th>
+                                    <th>最低</th>
+                                    <th>收盤</th>
+                                    <th>成交量</th>
+                                    <th>資料來源</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f4f6;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #9ca3af;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            color: white;
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        .status-online {
+            background: #10b981;
+        }
+
+        .status-offline {
+            background: #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 股票爬蟲監控面板</h1>
+            <p>即時監控已爬取的股票資料統計</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>總股票數</h3>
+                <div class="value primary" id="totalStocks">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>總資料筆數</h3>
+                <div class="value success" id="totalRecords">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>平均筆數</h3>
+                <div class="value" id="avgRecords">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>服務狀態</h3>
+                <div class="value" id="serviceStatus">
+                    <span class="status-indicator status-offline"></span>檢查中...
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="🔍 搜尋股票代碼或名稱...">
+            </div>
+            <button class="btn btn-primary" onclick="loadData()">🔄 重新整理</button>
+            <button class="btn btn-primary" onclick="triggerCrawl()" style="background: #10b981;">📡 爬取資料</button>
+            <button class="btn btn-secondary" onclick="exportToCSV()">📥 匯出 CSV</button>
+        </div>
+
+        <div class="table-container">
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>載入資料中...</p>
+            </div>
+            <div id="error" class="error" style="display: none;"></div>
+            <table id="dataTable" style="display: none;">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-column="stock_code">股票代碼</th>
+                        <th class="sortable" data-column="stock_name">股票名稱</th>
+                        <th class="sortable" data-column="record_count">資料筆數</th>
+                        <th class="sortable" data-column="first_date">起始日期</th>
+                        <th class="sortable" data-column="latest_date">最新日期</th>
+                        <th class="sortable" data-column="data_source">資料來源</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="dataBody"></tbody>
+            </table>
+        </div>
+
+        <div class="footer">
+            <p>Stock Crawler Service v1.0 | 最後更新: <span id="lastUpdate">-</span></p>
+        </div>
+    </div>
+
+    <script>
+        let stocksData = [];
+        let sortColumn = 'stock_code';
+        let sortDirection = 'asc';
+
+        // 頁面載入時自動載入資料
+        window.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            // 每 30 秒自動更新
+            setInterval(loadData, 30000);
+        });
+
+        // 載入資料
+        async function loadData() {
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const table = document.getElementById('dataTable');
+
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            table.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/v1/stats/stocks-summary');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                
+                // 处理不同的响应格式
+                const data = result.data || result;
+                stocksData = data.stocks || [];
+
+                updateStats(data);
+                renderTable();
+                updateStatus('online');
+
+                loading.style.display = 'none';
+                table.style.display = 'table';
+
+                document.getElementById('lastUpdate').textContent = new Date().toLocaleString('zh-TW');
+            } catch (err) {
+                console.error('載入資料失敗:', err);
+                loading.style.display = 'none';
+                error.style.display = 'block';
+                error.textContent = `❌ 載入失敗: ${err.message}。請確認 crawler-service 是否正在運行。`;
+                updateStatus('offline');
+            }
+        }
+
+        // 更新統計資訊
+        function updateStats(data) {
+            const totalStocks = data.total_stocks || 0;
+            const totalRecords = data.total_records || 0;
+            
+            document.getElementById('totalStocks').textContent = totalStocks.toLocaleString();
+            document.getElementById('totalRecords').textContent = totalRecords.toLocaleString();
+            
+            const avg = totalStocks > 0 ? Math.round(totalRecords / totalStocks) : 0;
+            document.getElementById('avgRecords').textContent = avg.toLocaleString();
+        }
+
+        // 更新服務狀態
+        function updateStatus(status) {
+            const statusEl = document.getElementById('serviceStatus');
+            const indicator = statusEl.querySelector('.status-indicator');
+            
+            if (status === 'online') {
+                indicator.className = 'status-indicator status-online';
+                statusEl.innerHTML = '<span class="status-indicator status-online"></span>運行中';
+            } else {
+                indicator.className = 'status-indicator status-offline';
+                statusEl.innerHTML = '<span class="status-indicator status-offline"></span>離線';
+            }
+        }
+
+        // 渲染表格
+        function renderTable() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = stocksData.filter(stock => 
+                stock.stock_code.toLowerCase().includes(searchTerm) || 
+                stock.stock_name.toLowerCase().includes(searchTerm)
+            );
+
+            const sorted = filtered.sort((a, b) => {
+                let aVal = a[sortColumn];
+                let bVal = b[sortColumn];
+
+                // 處理 null 值
+                if (aVal === null) aVal = '';
+                if (bVal === null) bVal = '';
+
+                if (sortColumn === 'record_count') {
+                    return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+                }
+
+                if (sortDirection === 'asc') {
+                    return aVal > bVal ? 1 : -1;
+                } else {
+                    return aVal < bVal ? 1 : -1;
+                }
+            });
+
+            const tbody = document.getElementById('dataBody');
+            tbody.innerHTML = '';
+
+            if (sorted.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="no-data">沒有找到符合的資料</td></tr>';
+                return;
+            }
+
+            sorted.forEach(stock => {
+                const row = document.createElement('tr');
+                const recordCount = stock.record_count || 0;
+                row.innerHTML = `
+                    <td><strong>${stock.stock_code || '-'}</strong></td>
+                    <td>${stock.stock_name || '-'}</td>
+                    <td><span class="badge badge-info">${recordCount.toLocaleString()}</span></td>
+                    <td>${stock.first_date || '-'}</td>
+                    <td>${stock.latest_date || '-'}</td>
+                    <td><span class="badge badge-success">${stock.data_source || '未知'}</span></td>
+                    <td><button class="btn-detail" onclick="viewStockDetail('${stock.stock_code}', '${stock.stock_name}')">📊 查看</button></td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            updateSortIndicators();
+        }
+
+        // 更新排序指示器
+        function updateSortIndicators() {
+            document.querySelectorAll('th.sortable').forEach(th => {
+                th.classList.remove('sorted-asc', 'sorted-desc');
+                if (th.dataset.column === sortColumn) {
+                    th.classList.add(sortDirection === 'asc' ? 'sorted-asc' : 'sorted-desc');
+                }
+            });
+        }
+
+        // 排序處理
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('th.sortable').forEach(th => {
+                th.addEventListener('click', () => {
+                    const column = th.dataset.column;
+                    if (sortColumn === column) {
+                        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        sortColumn = column;
+                        sortDirection = 'asc';
+                    }
+                    renderTable();
+                });
+            });
+        });
+
+        // 搜尋功能
+        document.getElementById('searchInput')?.addEventListener('input', () => {
+            renderTable();
+        });
+
+        // 匯出 CSV
+        function exportToCSV() {
+            if (!stocksData || stocksData.length === 0) {
+                alert('沒有資料可以匯出');
+                return;
+            }
+            
+            const headers = ['股票代碼', '股票名稱', '資料筆數', '起始日期', '最新日期', '資料來源'];
+            const rows = stocksData.map(stock => [
+                stock.stock_code || '',
+                stock.stock_name || '',
+                stock.record_count || 0,
+                stock.first_date || '',
+                stock.latest_date || '',
+                stock.data_source || ''
+            ]);
+
+            let csv = headers.join(',') + '\n';
+            rows.forEach(row => {
+                csv += row.map(cell => `"${cell}"`).join(',') + '\n';
+            });
+
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `stocks_summary_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+        }
+
+        // 觸發爬取資料
+        async function triggerCrawl() {
+            if (!confirm('確定要爬取所有股票的最新資料嗎？\n這可能需要幾分鐘時間。')) {
+                return;
+            }
+
+            const symbols = stocksData.map(s => s.stock_code).filter(code => code);
+            if (symbols.length === 0) {
+                alert('沒有可爬取的股票代碼');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/v1/stocks/batch-update', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ symbols: symbols })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                alert(`爬取任務已提交！\n批次 ID: ${result.batch_id || '未知'}\n請稍後查看資料更新狀態`);
+                
+                // 30秒後自動刷新
+                setTimeout(() => {
+                    loadData();
+                }, 30000);
+            } catch (err) {
+                console.error('爬取失敗:', err);
+                alert(`爬取失敗: ${err.message}`);
+            }
+
+        // 查看股票详情
+        async function viewStockDetail(stockCode, stockName) {
+            const modal = document.getElementById('detailModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalLoading = document.getElementById('modalLoading');
+            const modalError = document.getElementById('modalError');
+            const modalContent = document.getElementById('modalContent');
+
+            // 显示弹窗
+            modal.style.display = 'block';
+            modalTitle.textContent = `${stockCode} - ${stockName}`;
+            modalLoading.style.display = 'block';
+            modalError.style.display = 'none';
+            modalContent.style.display = 'none';
+
+            try {
+                // 获取历史数据（最近100天）
+                const endDate = new Date().toISOString().split('T')[0];
+                const startDate = new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                
+                const response = await fetch(`/api/v1/stocks/${stockCode}/history?start=${startDate}&end=${endDate}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                const data = result.data || result;
+                const records = data.records || [];
+
+                if (records.length === 0) {
+                    throw new Error('沒有找到歷史資料');
+                }
+
+                // 计算统计数据
+                const prices = records.map(r => r.close_price).filter(p => p);
+                const volumes = records.map(r => r.volume).filter(v => v);
+                
+                const avgPrice = prices.length > 0 ? (prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2) : 0;
+                const maxPrice = prices.length > 0 ? Math.max(...prices).toFixed(2) : 0;
+                const minPrice = prices.length > 0 ? Math.min(...prices).toFixed(2) : 0;
+                const avgVolume = volumes.length > 0 ? Math.round(volumes.reduce((a, b) => a + b, 0) / volumes.length) : 0;
+
+                // 显示统计卡片
+                const detailStats = document.getElementById('detailStats');
+                detailStats.innerHTML = `
+                    <div class="detail-stat-card">
+                        <h4>資料筆數</h4>
+                        <div class="value">${records.length.toLocaleString()}</div>
+                    </div>
+                    <div class="detail-stat-card">
+                        <h4>平均價格</h4>
+                        <div class="value">${avgPrice}</div>
+                    </div>
+                    <div class="detail-stat-card">
+                        <h4>最高價格</h4>
+                        <div class="value" style="color: #ef4444;">${maxPrice}</div>
+                    </div>
+                    <div class="detail-stat-card">
+                        <h4>最低價格</h4>
+                        <div class="value" style="color: #10b981;">${minPrice}</div>
+                    </div>
+                    <div class="detail-stat-card">
+                        <h4>平均成交量</h4>
+                        <div class="value">${avgVolume.toLocaleString()}</div>
+                    </div>
+                `;
+
+                // 显示历史数据表格
+                const historyBody = document.getElementById('historyBody');
+                historyBody.innerHTML = '';
+                
+                records.reverse().forEach(record => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${record.trade_date || '-'}</td>
+                        <td>${record.open_price ? record.open_price.toFixed(2) : '-'}</td>
+                        <td>${record.high_price ? record.high_price.toFixed(2) : '-'}</td>
+                        <td>${record.low_price ? record.low_price.toFixed(2) : '-'}</td>
+                        <td><strong>${record.close_price ? record.close_price.toFixed(2) : '-'}</strong></td>
+                        <td>${record.volume ? record.volume.toLocaleString() : '-'}</td>
+                        <td><span class="badge badge-success">${record.data_source || '未知'}</span></td>
+                    `;
+                    historyBody.appendChild(row);
+                });
+
+                modalLoading.style.display = 'none';
+                modalContent.style.display = 'block';
+
+            } catch (err) {
+                console.error('載入股票詳情失敗:', err);
+                modalLoading.style.display = 'none';
+                modalError.style.display = 'block';
+                modalError.textContent = `❌ 載入失敗: ${err.message}`;
+            }
+        }
+
+        // 关闭弹窗
+        function closeModal() {
+            document.getElementById('detailModal').style.display = 'none';
+        }
+
+        // 点击弹窗外部关闭
+        window.onclick = function(event) {
+            const modal = document.getElementById('detailModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+        }
+    </script>
+</body>
+</html>

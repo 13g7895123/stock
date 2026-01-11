@@ -183,7 +183,7 @@ if year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31 
 return time.Time{}, fmt.Errorf("invalid date values: %s", dateStr)
 }
 
-return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local), nil
+return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC), nil
 }
 
 // parseROCDate 解析民國日期
@@ -211,7 +211,7 @@ if err != nil {
 return time.Time{}, err
 }
 
-return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local), nil
+return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC), nil
 }
 
 // ParseTabDelimited 解析 tab 分隔格式（備用解析器）

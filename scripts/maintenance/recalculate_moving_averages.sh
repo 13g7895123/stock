@@ -41,7 +41,7 @@ RESPONSE=$(curl -s -X POST "http://localhost:9127/api/v1/moving-averages/calcula
     -H "Content-Type: application/json" \
     -d '{
         "stock_codes": null,
-        "periods": [5, 10, 20, 60, 120, 240],
+        "periods": [5, 10, 20, 60, 72, 120, 240],
         "force_recalculate": false,
         "batch_size": 50
     }')

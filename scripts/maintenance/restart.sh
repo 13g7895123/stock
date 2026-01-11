@@ -19,8 +19,16 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# 專案目錄
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# 專案目錄 (處理軟連結情況)
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+# 如果是軟連結，找到真實路徑
+if [ -L "$SCRIPT_PATH" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+    PROJECT_DIR="$SCRIPT_DIR"
+else
+    # 如果從 scripts/maintenance/ 執行
+    PROJECT_DIR="$(cd "$(dirname "$SCRIPT_PATH")/../.." && pwd)"
+fi
 cd "$PROJECT_DIR"
 
 # 顯示標題

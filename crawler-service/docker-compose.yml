@@ -37,6 +37,8 @@ services:
       - SERVER_PORT=8080
       - LOG_LEVEL=info
       - MAX_WORKERS=100
+    volumes:
+      - ./web:/app/web
     depends_on:
       postgres:
         condition: service_healthy

@@ -14,11 +14,12 @@ import (
 
 // RouterConfig 路由配置
 type RouterConfig struct {
-	StockService  *service.StockService
-	BatchService  *service.BatchService
-	BrokerManager *scraper.BrokerManager
-	Repository    storage.Repository
-	CORSConfig    *middleware.CORSConfig
+	StockService     *service.StockService
+	BatchService     *service.BatchService
+	StockListService *service.StockListService
+	BrokerManager    *scraper.BrokerManager
+	Repository       storage.Repository
+	CORSConfig       *middleware.CORSConfig
 }
 
 // NewRouter 創建新的路由器
@@ -27,6 +28,7 @@ func NewRouter(config *RouterConfig) http.Handler {
 	stockHandler := handlers.NewStockHandler(config.StockService)
 	batchHandler := handlers.NewBatchHandler(config.BatchService)
 	statsHandler := handlers.NewStatsHandler(config.Repository)
+	stockListHandler := handlers.NewStockListHandler(config.StockListService)
 	healthHandler := handlers.NewHealthHandler(
 		config.BrokerManager,
 		config.Repository,
@@ -70,6 +72,12 @@ func NewRouter(config *RouterConfig) http.Handler {
 		// /api/v1/stocks/batch-update
 		if path == "/api/v1/stocks/batch-update" {
 			batchHandler.BatchUpdate(w, r)
+			return
+		}
+
+		// /api/v1/stocks/fetch-all
+		if path == "/api/v1/stocks/fetch-all" {
+			stockListHandler.FetchAllStocks(w, r)
 			return
 		}
 

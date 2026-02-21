@@ -1,0 +1,134 @@
+# Stock Analysis System - Docker Compose Configuration
+# 使用 Docker 标准方式管理容器
+
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: ${CONTAINER_POSTGRES}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - ${VOLUME_POSTGRES}:/var/lib/postgresql/data
+      - ../crawler-service/deployments/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - ${NETWORK_NAME}
+
+  # Redis 缓存服务
+  redis:
+    image: redis:7-alpine
+    container_name: ${CONTAINER_REDIS}
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - ${VOLUME_REDIS}:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ${NETWORK_NAME}
+    command: redis-server --appendonly yes
+
+  # Go 爬虫服务
+  crawler-service:
+    build:
+      context: ../crawler-service
+      dockerfile: deployments/Dockerfile
+    image: stock-crawler-service:latest
+    container_name: ${CONTAINER_CRAWLER}
+    restart: unless-stopped
+    ports:
+      - "${CRAWLER_PORT}:8080"
+    environment:
+      # 数据库配置
+      DATABASE_URL: ${DATABASE_URL}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_SSLMODE: ${DB_SSLMODE}
+      
+      # 服务配置
+      SERVER_PORT: 8080
+      LOG_LEVEL: ${LOG_LEVEL}
+      LOG_FORMAT: ${LOG_FORMAT}
+      
+      # 爬虫配置
+      MAX_WORKERS: ${MAX_WORKERS}
+      BATCH_SIZE: ${BATCH_SIZE}
+      REQUEST_TIMEOUT: ${REQUEST_TIMEOUT}
+      SMART_SKIP_DAYS: ${SMART_SKIP_DAYS}
+      
+      # 监控配置
+      ENABLE_METRICS: ${ENABLE_METRICS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../logs:/app/logs
+      - ../crawler-service/configs:/app/configs:ro
+    networks:
+      - ${NETWORK_NAME}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Nuxt.js 前端服务
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    image: stock-frontend:latest
+    container_name: ${CONTAINER_FRONTEND}
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT}:3000"
+    environment:
+      NODE_ENV: ${ENVIRONMENT}
+      NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE}
+      NUXT_PUBLIC_API_URL: ${NUXT_PUBLIC_API_URL}
+      HOST: 0.0.0.0
+      PORT: 3000
+    depends_on:
+      crawler-service:
+        condition: service_healthy
+    networks:
+      - ${NETWORK_NAME}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  stock-network:
+    name: ${NETWORK_NAME}
+    driver: bridge
+
+volumes:
+  stock-postgres-data:
+    name: ${VOLUME_POSTGRES}
+  stock-redis-data:
+    name: ${VOLUME_REDIS}

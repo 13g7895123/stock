@@ -21,6 +21,8 @@ func DefaultCORSConfig() *CORSConfig {
 			"http://localhost:3000",
 			"http://localhost:3302",
 			"http://localhost:5173",
+			"http://localhost:9727",
+			"http://localhost:8080",
 		},
 		AllowedMethods: []string{
 			"GET",

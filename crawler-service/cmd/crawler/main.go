@@ -147,6 +147,10 @@ func main() {
 	batchService := service.NewBatchService(workerPool)
 	logger.Info("Batch service initialized")
 
+	// 建立股票清單服務
+	stockListService := service.NewStockListService(repository)
+	logger.Info("Stock list service initialized")
+
 	// 配置 CORS
 	corsConfig := &middleware.CORSConfig{
 		AllowedOrigins: cfg.Server.CORS.AllowedOrigins,
@@ -161,11 +165,12 @@ func main() {
 
 	// 創建路由器
 	routerConfig := &api.RouterConfig{
-		StockService:  stockService,
-		BatchService:  batchService,
-		BrokerManager: brokerManager,
-		Repository:    repository,
-		CORSConfig:    corsConfig,
+		StockService:     stockService,
+		BatchService:     batchService,
+		StockListService: stockListService,
+		BrokerManager:    brokerManager,
+		Repository:       repository,
+		CORSConfig:       corsConfig,
 	}
 
 	handler := api.NewRouter(routerConfig)

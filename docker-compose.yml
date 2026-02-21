@@ -1,8 +1,5 @@
 # Stock Crawler Service - Docker Compose Configuration
 # 高效能台灣股票資料爬蟲服務
-
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:

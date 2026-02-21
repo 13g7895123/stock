@@ -29,6 +29,7 @@ type Repository interface {
 	ListStocks(ctx context.Context, isActive bool) ([]Stock, error)
 	CreateStock(ctx context.Context, stock *Stock) error
 	UpdateStock(ctx context.Context, stock *Stock) error
+	UpsertStock(ctx context.Context, stock *Stock) error
 
 	// TaskExecutionLog operations
 	CreateTaskLog(ctx context.Context, log *TaskExecutionLog) (int64, error)
@@ -398,6 +399,36 @@ func (r *PostgresRepository) UpdateStock(ctx context.Context, stock *Stock) erro
 
 	return nil
 }
+
+// UpsertStock inserts or updates a stock record
+func (r *PostgresRepository) UpsertStock(ctx context.Context, stock *Stock) error {
+	query := `
+		INSERT INTO stocks (stock_code, stock_name, market, industry, is_active, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+		ON CONFLICT (stock_code) 
+		DO UPDATE SET 
+			stock_name = EXCLUDED.stock_name,
+			market = EXCLUDED.market,
+			industry = EXCLUDED.industry,
+			is_active = EXCLUDED.is_active,
+			updated_at = NOW()
+	`
+
+	_, err := r.db.DB().ExecContext(ctx, query, 
+		stock.StockCode,
+		stock.StockName,
+		stock.Market,
+		stock.Industry,
+		stock.IsActive,
+	)
+	
+	if err != nil {
+		return fmt.Errorf("failed to upsert stock: %w", err)
+	}
+
+	return nil
+}
+
 
 // CreateTaskLog inserts a new task execution log
 func (r *PostgresRepository) CreateTaskLog(ctx context.Context, log *TaskExecutionLog) (int64, error) {

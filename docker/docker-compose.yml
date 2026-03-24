@@ -112,7 +112,7 @@ services:
       PORT: 3000
     depends_on:
       crawler-service:
-        condition: service_healthy
+        condition: service_started
     networks:
       - ${NETWORK_NAME}
     healthcheck:
